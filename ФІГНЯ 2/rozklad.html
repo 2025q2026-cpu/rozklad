@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <style>
+        body { background: transparent; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        
+        .table-wrapper { border-top: 1px solid #94a3b8; border-left: 1px solid #94a3b8; }
+        .excel-table { border-collapse: separate; border-spacing: 0; width: 100%; user-select: none; }
+        .excel-table th, .excel-table td { border-bottom: 1px solid #94a3b8; border-right: 1px solid #94a3b8; padding: 2px; }
+        
+        /* ЖОРСТКА ФІКСАЦІЯ КОЛОНОК (ОПЕРАТИВНИЙ) */
+        .op-num { width: 35px; min-width: 35px; max-width: 35px; left: 0; position: sticky; z-index: 60; }
+        .op-tch { width: 220px; min-width: 220px; max-width: 220px; left: 35px; position: sticky; z-index: 60; transition: all 0.3s ease; }
+        
+        /* ЖОРСТКА ФІКСАЦІЯ КОЛОНОК (ЗВИЧАЙНИЙ) */
+        .reg-day { width: 35px; min-width: 35px; max-width: 35px; left: 0; position: sticky; z-index: 60; }
+        .reg-num { width: 35px; min-width: 35px; max-width: 35px; left: 35px; position: sticky; z-index: 60; }
+        .reg-time { width: 90px; min-width: 90px; max-width: 90px; left: 70px; position: sticky; z-index: 60; }
+
+        .z-top-left { z-index: 80 !important; } 
+		.z-top { z-index: 70 !important; } 
+		.z-left { z-index: 60 !important; }   
+        
+        input[type="text"] { -moz-appearance: textfield; }
+        
+        .selected-cell { box-shadow: inset 0 0 0 2px #4f46e5 !important; background-color: #e0e7ff !important; }
+        .selected-cell input { background-color: #e0e7ff !important; }
+
+        .comment-triangle {
+            position: absolute; bottom: 0; right: 0;
+            width: 0; height: 0;
+            border-left: 8px solid transparent;
+            border-bottom-width: 8px; border-bottom-style: solid;
+            z-index: 10; pointer-events: none;
+        }
+
+        .print-hide { display: block; }
+
+       /* CSS ДЛЯ ДРУКУ */
+        @media print { 
+            @page { size: landscape; margin: 4mm; }
+            body { background: white; padding: 0 !important; margin: 0 !important; overflow: visible !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-hide { display: none !important; } 
+            .print-block { display: block !important; }
+            .print-hide-strict { display: none !important; }
+            .print-table-row { display: table-row !important; }
+            .print-page-break-before { page-break-before: always !important; break-before: page !important; }
+            
+            html, body, #mode-rozklad, #rozklad-table-container { 
+                height: auto !important; max-height: none !important; overflow: visible !important; display: block !important; position: static !important;
+            }
+            
+            .table-wrapper { border: none !important; overflow: visible !important; height: auto !important; }
+            .excel-table { width: 100% !important; table-layout: fixed; border-collapse: collapse !important; }
+            thead { display: table-header-group; }
+            tr { page-break-inside: avoid; }
+            
+            .excel-table th, .excel-table td { border: 1px solid #000 !important; color: #000 !important; padding: 1px !important; font-size: 8px !important; line-height: 1.1 !important; }
+            input[type="text"] { border: none; background: transparent; pointer-events: none; color: #000; font-size: 9px !important; padding: 0 !important; width: 100%; text-align: center; }
+            
+            .op-num, .op-tch, .reg-day, .reg-num, .reg-time { position: static !important; left: auto !important; top: auto !important; bottom: auto !important; z-index: auto !important; box-shadow: none !important; border: 1px solid #000 !important; }
+            
+            .selected-cell { box-shadow: none !important; background-color: transparent !important; }
+            
+            .page-break-print { page-break-after: always; width: 100%; margin-bottom: 0 !important; }
+            .page-break-print:last-child { page-break-after: auto; }
+
+            .truncate-print {
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                display: block;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden font-sans text-slate-700">
+
+    <!-- ПІДМЕНЮ -->
+    <div id="submenu-rozklad" class="px-4 flex justify-between items-center text-sm font-medium text-slate-500 shrink-0 border-b border-slate-200 pb-2 print-hide bg-white/50 pt-2 rounded-t-xl z-50 relative">
+        <div class="flex items-center gap-4 w-1/2">
+            <div class="flex bg-slate-200 p-1 rounded-lg shrink-0 shadow-inner">
+                <button id="toggle-oper" onclick="window.setRozkladMode('oper')" class="px-3 py-1 rounded-md text-sm font-bold bg-white text-indigo-700 shadow-sm transition-all">Оперативний</button>
+                <button id="toggle-reg" onclick="window.setRozkladMode('reg')" class="px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">Звичайний</button>
+            </div>
+            <div id="rozklad-tabs" class="flex gap-2 overflow-x-auto items-center pb-1 flex-1 custom-scrollbar"></div>
+        </div>
+        <div class="flex gap-2 shrink-0 items-center">
+            
+            <div id="lunch-selector-container" class="hidden items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 mr-2">
+                <label class="font-bold text-slate-600 text-xs">Обід після:</label>
+                <select id="lunch-select" class="border border-slate-300 rounded p-1 outline-none text-xs bg-white" onchange="window.saveRozkladMeta('lunchAfter', this.value)">
+                    <option value="0">Немає</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                </select>
+            </div>
+
+            <button id="btn-prymitky" onclick="window.openPrymitkyModal()" class="px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg shadow-sm transition-colors border border-yellow-200"><i class="fa-solid fa-pen-to-square mr-1"></i> Примітки</button>
+            <button id="btn-reg-comments" onclick="window.openRegCommentModal()" class="hidden px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg shadow-sm transition-colors border border-amber-200"><i class="fa-solid fa-comment-dots mr-1"></i> Коментар</button>
+            
+            <div class="w-px bg-slate-300 mx-1 h-6 self-center"></div>
+            <button onclick="exportToExcelJS()" class="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg shadow-sm transition-colors border border-green-200"><i class="fa-solid fa-file-excel mr-1"></i> Excel</button>
+            <button onclick="window.openPrintSettings()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shadow-sm transition-colors border border-slate-300"><i class="fa-solid fa-print mr-1"></i> Друк</button>
+        </div>
+    </div>
+
+    <!-- КОНТЕЙНЕР ДЛЯ ТАБЛИЦІ -->
+    <div id="mode-rozklad" class="flex-1 flex flex-col overflow-hidden h-full w-full relative select-none">
+        <div id="rozklad-table-container" class="flex-1 flex flex-col overflow-hidden w-full relative"></div>
+    </div>
+
+    <div id="oper-group-dropdown" class="fixed hidden bg-white border border-slate-300 shadow-2xl z-[150] w-56 rounded-xl flex flex-col text-sm overflow-hidden py-1">
+        <div id="oper-group-list" class="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white custom-scrollbar"></div>
+    </div>
+
+    <div id="reg-subj-dropdown" class="fixed hidden bg-white border border-slate-300 shadow-2xl z-[150] w-64 rounded-xl flex flex-col text-sm overflow-hidden py-1">
+        <div id="reg-subj-list" class="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white custom-scrollbar"></div>
+    </div>
+
+    <div id="prymitky-modal" class="fixed inset-0 bg-slate-900/50 hidden z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div class="p-4 border-b bg-yellow-50 font-bold text-yellow-800 flex items-center"><i class="fa-solid fa-pen-to-square mr-2"></i>Примітки до цього розкладу</div>
+            <div class="p-4 flex flex-col gap-3">
+                <textarea id="prymitky-text" rows="5" class="w-full border border-slate-300 rounded p-2 text-sm outline-none focus:border-yellow-500" placeholder="Введіть текст приміток, який буде відображатись під таблицею..."></textarea>
+            </div>
+            <div class="p-3 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                <button onclick="document.getElementById('prymitky-modal').classList.add('hidden')" class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">Скасувати</button>
+                <button onclick="window.savePrymitky()" class="px-4 py-1.5 bg-yellow-500 text-white rounded-lg text-sm font-bold hover:bg-yellow-600 transition-colors shadow-sm">Зберегти</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reg-comment-modal" class="fixed inset-0 bg-slate-900/50 hidden z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
+            <div class="p-4 border-b bg-amber-50 font-bold text-amber-800 flex items-center"><i class="fa-solid fa-comment-dots mr-2"></i>Коментар до комірок</div>
+            <div class="p-4 flex flex-col gap-3">
+                <textarea id="reg-comment-text" rows="3" class="w-full border border-slate-300 rounded p-2 text-sm outline-none focus:border-amber-500" placeholder="Введіть текст коментаря..."></textarea>
+                <div class="flex items-center gap-3 mt-2">
+                    <label class="text-sm font-medium text-slate-600">Колір маркера:</label>
+                    <input type="color" id="reg-comment-color" value="#f59e0b" class="w-8 h-8 rounded border-0 p-0 cursor-pointer">
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-100 bg-slate-50 flex justify-between gap-2">
+                <button id="btn-delete-reg-comment" onclick="window.deleteRegComment()" class="px-4 py-1.5 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 transition-colors hidden"><i class="fa-solid fa-trash mr-1"></i> Видалити</button>
+                <div class="flex gap-2 ml-auto">
+                    <button onclick="document.getElementById('reg-comment-modal').classList.add('hidden')" class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">Скасувати</button>
+                    <button onclick="window.saveRegComment()" class="px-4 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors shadow-sm">Зберегти</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- НОВЕ МОДАЛЬНЕ ВІКНО НАЛАШТУВАНЬ ДРУКУ -->
+    <div id="print-settings-modal" class="fixed inset-0 bg-slate-900/50 hidden z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
+            <div class="p-4 border-b bg-slate-100 font-bold text-slate-800 flex items-center"><i class="fa-solid fa-print mr-2"></i>Налаштування друку (Звичайний)</div>
+            <div class="p-4 flex flex-col gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Орієнтація аркуша:</label>
+                    <select id="print-orientation" class="w-full border border-slate-300 rounded p-2 text-sm outline-none focus:border-indigo-500">
+                        <option value="landscape">Альбомна (Landscape)</option>
+                        <option value="portrait">Книжкова (Portrait)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Кількість груп на аркуші:</label>
+                    <input type="number" id="print-groups-per-page" value="5" min="1" max="10" class="w-full border border-slate-300 rounded p-2 text-sm outline-none focus:border-indigo-500">
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                <button onclick="document.getElementById('print-settings-modal').classList.add('hidden')" class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">Скасувати</button>
+                <button onclick="window.executeRegPrint()" class="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm">Друкувати</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const p = window.parent; 
+
+        window.rozkladData = {};
+        window.rozkladViewMode = localStorage.getItem('fignia_rozklad_mode') || 'oper';
+        window.currentRozkladIndex = null;
+        window.currentAllocations = {};
+        window.rozkladSaveTimeouts = {};
+
+        // НОВІ ЗМІННІ ТА ФУНКЦІЇ ДЛЯ ДРУКУ
+        window.currentPrintGroupsPerPage = 5;
+
+        window.openPrintSettings = function() {
+            if (window.rozkladViewMode === 'oper') {
+                window.print(); // Оперативний друкується як раніше
+            } else {
+                document.getElementById('print-settings-modal').classList.remove('hidden');
+            }
+        };
+
+        window.executeRegPrint = function() {
+            let orientation = document.getElementById('print-orientation').value;
+            window.currentPrintGroupsPerPage = parseInt(document.getElementById('print-groups-per-page').value) || 5;
+            
+            // Динамічне правило для орієнтації сторінки
+            let style = document.getElementById('dynamic-print-style');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'dynamic-print-style';
+                document.head.appendChild(style);
+            }
+            style.innerHTML = `@media print { @page { size: ${orientation} !important; margin: 4mm; } }`;
+            
+            // Перебудовуємо таблицю
+            window.renderActiveTable();
+            document.getElementById('print-settings-modal').classList.add('hidden');
+            
+            setTimeout(() => {
+                window.print();
+            }, 150);
+        };
+        // КІНЕЦЬ НОВОГО КОДУ
+
+        window.currentRegGrid = null;
+        window.currentRegUsages = null;
+
+        let activeOperInput = null;
+        let selectedCells = new Set();
+        let isDragging = false;
+        let startCell = null;
+
+        // ДИНАМІЧНА ГЕНЕРАЦІЯ ДНІВ З НАЛАШТУВАНЬ
+        function getDaysConfig() {
+            let s = p.generalSettings || {};
+            let wDays = parseInt(s.workDays) || 5;
+            let regLessons = parseInt(s.lessonsRegular) || 8;
+            let lastLessons = parseInt(s.lessonsLast) || 6;
+            
+            let config = [];
+            const dayNames = ['ПОНЕДІЛОК', 'ВІВТОРОК', 'СЕРЕДА', 'ЧЕТВЕР', 'П’ЯТНИЦЯ', 'СУБОТА'];
+            
+            for (let i = 0; i < wDays; i++) {
+                let count = (i === wDays - 1) ? lastLessons : regLessons;
+                config.push({ name: dayNames[i], count: count });
+            }
+            return config;
+        }
+
+        window.onDataUpdated = function() {
+            initRozklads();
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && activeEl.tagName === 'INPUT';
+            
+            if (isTyping && window.rozkladViewMode === 'oper') {
+                window.currentAllocations = calculateAllocations(window.currentRozkladIndex);
+                window.validateOperatyvny();
+            } else if(!isTyping) {
+                window.renderActiveTable();
+            }
+        };
+
+        function initRozklads() {
+            if(!p.ekranData || !p.groupsData) return;
+
+            let maxRozklads = 0;
+            for (let gId in p.ekranData) {
+                let rCount = (p.ekranData[gId].rozklads || []).length;
+                if (rCount > maxRozklads) maxRozklads = rCount;
+            }
+            
+            let html = '';
+            for(let i = 0; i < maxRozklads; i++) {
+                let rName = `Розклад ${i + 1}`;
+                for (let gId in p.ekranData) {
+                    let r = p.ekranData[gId].rozklads?.[i];
+                    if (r && r.name && !r.name.toLowerCase().startsWith('розклад')) {
+                        rName = r.name;
+                        break;
+                    }
+                }
+                html += `<button class="rozklad-sub-tab px-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-500 hover:bg-slate-100" data-ridx="${i}" onclick="window.selectRozklad(${i}, this)">${rName}</button>`;
+            }
+            document.getElementById('rozklad-tabs').innerHTML = html;
+            
+            if (maxRozklads === 0) {
+                document.getElementById('rozklad-table-container').innerHTML = '<div class="p-8 text-center text-slate-500">Спочатку створіть розклади на вкладці "Екран".</div>';
+                return;
+            }
+            
+            if (window.currentRozkladIndex === null || window.currentRozkladIndex >= maxRozklads) {
+                window.currentRozkladIndex = 0;
+            }
+            
+            let activeBtn = document.querySelector(`.rozklad-sub-tab[data-ridx="${window.currentRozkladIndex}"]`);
+            if(activeBtn) {
+                activeBtn.classList.remove('text-slate-500');
+                activeBtn.classList.add('bg-indigo-100', 'text-indigo-700', 'font-bold', 'shadow-sm');
+            }
+
+            for (let rIdx = 0; rIdx < maxRozklads; rIdx++) {
+                let sData = p.rozkladData ? (p.rozkladData[`rozklad_${rIdx}`] || {}) : {};
+                if (!sData.oper) sData.oper = {};
+                if (!sData.reg) sData.reg = {};
+                if (!sData.times) sData.times = {};
+                if (!sData.meta) sData.meta = {};
+                if (!sData.prymitky) sData.prymitky = '';
+                if (!sData.comments) sData.comments = {}; 
+                window.rozkladData[rIdx] = JSON.parse(JSON.stringify(sData)); 
+            }
+            
+            window.setRozkladMode(window.rozkladViewMode, true);
+        }
+
+        window.selectRozklad = function(idx, btn) {
+            window.currentRozkladIndex = idx;
+            document.querySelectorAll('.rozklad-sub-tab').forEach(b => {
+                b.classList.remove('bg-indigo-100', 'text-indigo-700', 'font-bold', 'shadow-sm');
+                b.classList.add('text-slate-500');
+            });
+            if(btn) {
+                btn.classList.remove('text-slate-500');
+                btn.classList.add('bg-indigo-100', 'text-indigo-700', 'font-bold', 'shadow-sm');
+            }
+            window.renderActiveTable();
+        };
+
+        window.setRozkladMode = function(mode, noRender = false) {
+            window.rozkladViewMode = mode;
+            localStorage.setItem('fignia_rozklad_mode', mode);
+            
+            const btnOper = document.getElementById('toggle-oper');
+            const btnReg = document.getElementById('toggle-reg');
+            const btnPrymitky = document.getElementById('btn-prymitky');
+            const btnRegComments = document.getElementById('btn-reg-comments');
+            const lunchSelector = document.getElementById('lunch-selector-container');
+
+            if (mode === 'oper') {
+                btnOper.className = "px-3 py-1 rounded-md text-sm font-bold bg-white text-indigo-700 shadow-sm transition-all";
+                btnReg.className = "px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
+                btnPrymitky.classList.remove('hidden');
+                btnRegComments.classList.add('hidden');
+                lunchSelector.classList.add('hidden');
+            } else {
+                btnReg.className = "px-3 py-1 rounded-md text-sm font-bold bg-white text-indigo-700 shadow-sm transition-all";
+                btnOper.className = "px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
+                btnPrymitky.classList.add('hidden');
+                btnRegComments.classList.remove('hidden');
+                lunchSelector.classList.remove('hidden');
+            }
+            if (!noRender) window.renderActiveTable();
+        };
+
+        window.renderActiveTable = function() {
+            if(window.currentRozkladIndex === null) return;
+            
+            let container = document.getElementById('rozklad-table-container');
+            let wrapper = container.querySelector('.table-wrapper');
+            let sTop = wrapper ? wrapper.scrollTop : 0;
+            let sLeft = wrapper ? wrapper.scrollLeft : 0;
+
+            if(window.rozkladViewMode === 'oper') renderOperatyvny();
+            else renderZvychainy();
+
+            wrapper = container.querySelector('.table-wrapper');
+            if (wrapper) {
+                wrapper.scrollTop = sTop;
+                wrapper.scrollLeft = sLeft;
+            }
+        };
+
+        window.openPrymitkyModal = function() {
+            let rIdx = window.currentRozkladIndex;
+            if (rIdx === null) return;
+            document.getElementById('prymitky-text').value = window.rozkladData[rIdx]?.prymitky || '';
+            document.getElementById('prymitky-modal').classList.remove('hidden');
+        };
+
+        window.savePrymitky = function() {
+            let rIdx = window.currentRozkladIndex;
+            if (rIdx === null) return;
+            let text = document.getElementById('prymitky-text').value.trim();
+            
+            if(!window.rozkladData[rIdx]) window.rozkladData[rIdx] = { oper: {}, reg: {}, times: {}, meta: {}, comments: {} };
+            window.rozkladData[rIdx].prymitky = text;
+            
+            if(p.api && p.api.saveRozklad) p.api.saveRozklad(`rozklad_${rIdx}`, { prymitky: text });
+            
+            document.getElementById('prymitky-modal').classList.add('hidden');
+            window.renderActiveTable(); 
+        };
+
+        window.formatApprDate = function(dateStr) {
+            if (!dateStr) return '';
+            let parts = dateStr.split('-');
+            if (parts.length === 3) {
+                const months = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+                return `${parseInt(parts[2], 10)} ${months[parseInt(parts[1], 10)-1]} ${parts[0]} року`;
+            }
+            return dateStr;
+        };
+
+        window.getSigOptions = function() {
+            const s = p.generalSettings || {};
+            return [
+                { id: '', pos: '— Не вибрано —', name: '' },
+                { id: 'dir', pos: 'Директор', name: s.dirShort || '' },
+                { id: 'prof', pos: 'Голова профкому', name: s.profShort || '' },
+                { id: 'dep1', pos: s.dep1Pos || 'Заст. директора', name: s.dep1Short || '' },
+                { id: 'dep2', pos: s.dep2Pos || 'Заст. директора', name: s.dep2Short || '' },
+                { id: 'dep3', pos: s.dep3Pos || 'Заст. директора', name: s.dep3Short || '' },
+                { id: 'meth', pos: s.methPos || 'Методист', name: s.methShort || '' },
+                { id: 'stud', pos: s.studprofPos || 'Голова учпрофкому', name: s.studprofShort || '' }
+            ];
+        };
+
+        function buildSigSelect(key, currentVal, extraVal = '') {
+            let sigs = window.getSigOptions();
+            if (!p.HAS_LICENSE) {
+                if (!currentVal || currentVal === '') return '';
+                if (key === 'sigTopR') {
+                    let dHtml = extraVal ? `<div class="mt-1 text-center pr-12">${extraVal}</div>` : '';
+                    return `<div class="flex justify-end items-end gap-1 text-[10px]"><span>${sigs.find(x=>x.id===currentVal)?.pos || ''}</span> <span class="tracking-tighter text-slate-400">__________________</span> <span class="font-bold">${sigs.find(x=>x.id===currentVal)?.name || ''}</span></div>${dHtml}`;
+                }
+                return `<div class="text-[10px] text-left">${sigs.find(x=>x.id===currentVal)?.pos || ''}</div><div class="font-bold text-xs mt-1 text-left"><span class="tracking-tighter text-slate-400">__________________</span> ${sigs.find(x=>x.id===currentVal)?.name || ''}</div>`;
+            }
+            
+            let html = `<select class="print-hide w-[150px] p-1 outline-none bg-white border border-slate-300 rounded text-[10px]" onchange="window.saveRozkladMeta('${key}', this.value)">`;
+            sigs.forEach(opt => {
+                html += `<option value="${opt.id}" ${currentVal === opt.id ? 'selected' : ''}>${opt.pos} ${opt.name}</option>`;
+            });
+            html += `</select>`;
+            let selOpt = sigs.find(x => x.id === currentVal) || sigs[0];
+            
+            let printContent = '';
+            if (currentVal && currentVal !== '') {
+                if (key === 'sigTopR') {
+                    let dHtml = extraVal ? `<div class="mt-1 text-center pr-12">${extraVal}</div>` : '';
+                    printContent = `<div class="flex justify-end items-end gap-1"><span>${selOpt.pos}</span> <span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>${dHtml}`;
+                } else {
+                    printContent = `<div class="text-left">${selOpt.pos}</div><div class="mt-1 text-left"><span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>`;
+                }
+            }
+            html += `<div class="hidden print-block text-xs" id="print-block-${key}">${printContent}</div>`;
+            return html;
+        }
+
+        function getSigPrintHtml(key, currentVal, extraVal = '') {
+            if (!currentVal || currentVal === '') return '';
+            let sigs = window.getSigOptions();
+            let selOpt = sigs.find(x => x.id === currentVal) || sigs[0];
+            
+            if (key === 'sigTopR') {
+                let dHtml = extraVal ? `<div class="mt-1 text-center pr-12">${extraVal}</div>` : '';
+                return `<div class="flex justify-end items-end gap-1"><span>${selOpt.pos}</span> <span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>${dHtml}`;
+            } else {
+                return `<div class="text-left">${selOpt.pos}</div><div class="mt-1 text-left"><span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>`;
+            }
+        }
+
+        window.saveRozkladMeta = function(key, value) {
+            if (!p.HAS_LICENSE) return;
+
+            if (key === 'approvalDate' || key === 'lunchAfter') {
+                let rIdx = window.currentRozkladIndex;
+                if(!window.rozkladData[rIdx]) window.rozkladData[rIdx] = { oper: {}, reg: {}, times: {}, meta: {}, comments: {} };
+                if(!window.rozkladData[rIdx].meta) window.rozkladData[rIdx].meta = {};
+                window.rozkladData[rIdx].meta[key] = value;
+                
+                let saveKey = `meta_${rIdx}_${key}`;
+                if (window.rozkladSaveTimeouts[saveKey]) clearTimeout(window.rozkladSaveTimeouts[saveKey]);
+                window.rozkladSaveTimeouts[saveKey] = setTimeout(() => {
+                    if(p.api && p.api.saveRozklad) p.api.saveRozklad(`rozklad_${rIdx}`, { meta: window.rozkladData[rIdx].meta });
+                }, 300);
+            } else {
+                Object.keys(window.rozkladData).forEach(rIdx => {
+                    if(!window.rozkladData[rIdx]) window.rozkladData[rIdx] = { oper: {}, reg: {}, times: {}, meta: {}, comments: {} };
+                    if(!window.rozkladData[rIdx].meta) window.rozkladData[rIdx].meta = {};
+                    window.rozkladData[rIdx].meta[key] = value;
+                    
+                    let saveKey = `meta_${rIdx}_${key}`;
+                    if (window.rozkladSaveTimeouts[saveKey]) clearTimeout(window.rozkladSaveTimeouts[saveKey]);
+                    window.rozkladSaveTimeouts[saveKey] = setTimeout(() => {
+                        if(p.api && p.api.saveRozklad) p.api.saveRozklad(`rozklad_${rIdx}`, { meta: window.rozkladData[rIdx].meta });
+                    }, 300);
+                });
+            }
+            
+            if (key === 'lunchAfter') {
+                window.renderActiveTable(); 
+            } else {
+                let rIdx = window.currentRozkladIndex;
+                let meta = window.rozkladData[rIdx]?.meta || {};
+                
+                if (key === 'approvalDate') {
+                    let sigVal = meta.sigTopR;
+                    if (sigVal && sigVal !== '') {
+                        let selOpt = window.getSigOptions().find(x => x.id === sigVal) || window.getSigOptions()[0];
+                        let block = document.getElementById(`print-block-sigTopR`);
+                        if(block) {
+                            let formattedDate = window.formatApprDate(value);
+                            let dHtml = formattedDate ? `<div class="mt-1 text-center pr-12">${formattedDate}</div>` : '';
+                            block.innerHTML = `<div class="flex justify-end items-end gap-1"><span>${selOpt.pos}</span> <span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>${dHtml}`;
+                        }
+                    }
+                } else {
+                    let selOpt = window.getSigOptions().find(x => x.id === value) || window.getSigOptions()[0];
+                    let block = document.getElementById(`print-block-${key}`);
+                    if(block) {
+                        if (value && value !== '') {
+                            if (key === 'sigTopR') {
+                                let extra = window.formatApprDate(meta.approvalDate || '');
+                                let dHtml = extra ? `<div class="mt-1 text-center pr-12">${extra}</div>` : '';
+                                block.innerHTML = `<div class="flex justify-end items-end gap-1"><span>${selOpt.pos}</span> <span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>${dHtml}`;
+                            } else {
+                                block.innerHTML = `<div class="text-left">${selOpt.pos}</div><div class="mt-1 text-left"><span class="tracking-tighter">__________________</span> <span class="font-bold">${selOpt.name}</span></div>`;
+                            }
+                        } else {
+                            block.innerHTML = '';
+                        }
+                    }
+                }
+            }
+        };
+
+        window.saveRozkladTime = function(lessonNum, value) {
+            if (!p.HAS_LICENSE) return;
+            
+            document.querySelectorAll(`.time-input-${lessonNum}, .time-input-l${lessonNum}`).forEach(inp => {
+                if (inp !== document.activeElement) inp.value = value;
+            });
+            
+            Object.keys(window.rozkladData).forEach(rIdx => {
+                if(!window.rozkladData[rIdx]) window.rozkladData[rIdx] = { oper: {}, reg: {}, times: {}, meta: {}, comments: {} };
+                if(!window.rozkladData[rIdx].times) window.rozkladData[rIdx].times = {};
+                window.rozkladData[rIdx].times[lessonNum] = value;
+                
+                let saveKey = `time_${rIdx}_${lessonNum}`;
+                if (window.rozkladSaveTimeouts[saveKey]) clearTimeout(window.rozkladSaveTimeouts[saveKey]);
+                window.rozkladSaveTimeouts[saveKey] = setTimeout(() => {
+                    if(p.api && p.api.saveRozklad) p.api.saveRozklad(`rozklad_${rIdx}`, { times: window.rozkladData[rIdx].times });
+                }, 300);
+            });
+        };
+
+        function getRozkladBlocks(groupId) {
+            let eData = p.ekranData[groupId] || { rozklads: [] };
+            let rozklads = eData.rozklads || [];
+            let currDate = p.generalSettings.sem1Start ? new Date(p.generalSettings.sem1Start) : null;
+            let sem1EndDate = p.generalSettings.sem1End ? new Date(p.generalSettings.sem1End) : null;
+            let sem2StartDate = p.generalSettings.sem2Start ? new Date(p.generalSettings.sem2Start) : null;
+            let sem2EndDate = p.generalSettings.sem2End ? new Date(p.generalSettings.sem2End) : null;
+            
+            let blocks = []; let globalIdx = 0;
+            rozklads.forEach((r, rIdx) => {
+                let block = { rId: r.id, name: r.name, weeks: [], cols: r.cols };
+                r.cols.forEach(col => {
+                    let wCount = parseFloat(col.weeks) || 0;
+                    for(let i=0; i<wCount; i++) {
+                        let weekStart = currDate ? new Date(currDate) : null;
+                        let weekEnd = null;
+
+                        if (weekStart) {
+                            weekEnd = new Date(weekStart);
+                            while (weekEnd.getDay() !== 5) { weekEnd.setDate(weekEnd.getDate() + 1); }
+                            if (sem1EndDate && weekStart.getTime() <= sem1EndDate.getTime() && weekEnd.getTime() > sem1EndDate.getTime()) weekEnd = new Date(sem1EndDate);
+                            else if (sem2EndDate && weekStart.getTime() <= sem2EndDate.getTime() && weekEnd.getTime() > sem2EndDate.getTime()) weekEnd = new Date(sem2EndDate);
+                        }
+
+                        block.weeks.push({ globalIndex: globalIdx++, startDateObj: weekStart ? new Date(weekStart) : null, dateObj: weekEnd ? new Date(weekEnd) : null });
+                        
+                        if (weekEnd) {
+                            if (sem1EndDate && sem2StartDate && weekEnd.getTime() >= sem1EndDate.getTime() && weekStart.getTime() <= sem1EndDate.getTime()) {
+                                currDate = new Date(sem2StartDate);
+                            } else {
+                                currDate = new Date(weekEnd); currDate.setDate(currDate.getDate() + 1);
+                                while (currDate.getDay() !== 1) currDate.setDate(currDate.getDate() + 1);
+                            }
+                        }
+                    }
+                });
+                blocks.push(block);
+            });
+            return blocks;
+        }
+
+        function getActiveRozkladDateString() {
+            if(!p.groupsData || p.groupsData.length === 0) return "Розклад уроків";
+            let gId = p.groupsData[0].id;
+            let blocks = getRozkladBlocks(gId);
+            let currentBlock = blocks.find(b => b.rId === p.ekranData[gId]?.rozklads?.[window.currentRozkladIndex]?.id);
+            if (!currentBlock || currentBlock.weeks.length === 0) return "Розклад уроків";
+
+            let firstWeek = currentBlock.weeks[0];
+            let lastWeek = currentBlock.weeks[currentBlock.weeks.length - 1];
+
+            let startDate = firstWeek.startDateObj ? new Date(firstWeek.startDateObj) : null;
+            let endDate = lastWeek.dateObj ? new Date(lastWeek.dateObj) : null;
+
+            if (!startDate || !endDate) return "Розклад уроків";
+
+            const months = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+            let sD = startDate.getDate().toString().padStart(2, '0');
+            let sM = months[startDate.getMonth()];
+            let eD = endDate.getDate().toString().padStart(2, '0');
+            let eM = months[endDate.getMonth()];
+            let year = endDate.getFullYear();
+
+            return `з ${sD} ${sM} по ${eD} ${eM} ${year} року`;
+        }
+
+        function getMaxRozkladHour(groupId, subjId, rId) {
+            let blocks = getRozkladBlocks(groupId);
+            let block = blocks.find(b => b.rId === rId);
+            if (!block) return 0;
+            
+            let vData = p.vychytkaData[groupId]?.hours || {};
+            let maxH = 0;
+            for(let w of block.weeks) {
+                let h = parseFloat(vData[`${subjId}_w${w.globalIndex}`]?.rozklad) || 0;
+                if (h > maxH) maxH = h;
+            }
+            return maxH;
+        }
+
+        function getGroupSubjectsWithIds(groupId) {
+            const group = p.groupsData.find(g => g.id === groupId); 
+            if (!group) return [];
+            let groupSubjects = [];
+            const addSubj = (sId, tId1, tId2) => { groupSubjects.push({ id: sId, teacherId: tId1, teacherId2: tId2 }); };
+            
+            if (group.education.includes('Базова')) {
+                p.genSubjectsData.forEach(subj => {
+                    let tMain = p.workloadMap[`gen_${subj.id}_${groupId}`]?.teacherId;
+                    let tSplit = subj.isSplit ? p.workloadMap[`gen_${subj.id}_split_${groupId}`]?.teacherId : null;
+                    let teachers = [tMain, tSplit].filter(Boolean);
+                    let uniqueT = [...new Set(teachers)];
+                    uniqueT.forEach(tId => addSubj(`gen_${subj.id}`, tId, null));
+                });
+            }
+
+            p.specSubjectsAll.forEach(subj => {
+                let tMain1 = p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.teacherId;
+                let tMain2 = p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.teacherId2;
+                let tSplit1 = subj.isSplit ? p.workloadMap[`spec_${subj.id}_split_${groupId}`]?.teacherId : null;
+                let tSplit2 = subj.isSplit ? p.workloadMap[`spec_${subj.id}_split_${groupId}`]?.teacherId2 : null;
+                
+                let teachers = [tMain1, tMain2, tSplit1, tSplit2].filter(Boolean);
+                let uniqueT = [...new Set(teachers)];
+                uniqueT.forEach(tId => addSubj(`spec_${subj.id}`, tId, null));
+            });
+
+            return groupSubjects;
+        }
+
+        window.getTeacherGroupSubjects = function() {
+            let tgs = {}; 
+            p.groupsData.forEach(g => {
+                let gNum = (g.num || g.name).toString();
+                let subjects = getGroupSubjectsWithIds(g.id);
+                subjects.forEach(s => {
+                    [s.teacherId, s.teacherId2].filter(Boolean).forEach(tId => {
+                        if (!tgs[tId]) tgs[tId] = {};
+                        if (!tgs[tId][gNum]) tgs[tId][gNum] = new Set();
+                        tgs[tId][gNum].add(s.id);
+                    });
+                });
+            });
+            return tgs;
+        }
+
+        function calculateAllocations(rIdx) {
+            let alloc = {}; 
+            p.groupsData.forEach(g => {
+                let gNum = (g.num || g.name).toString();
+                let subjects = getGroupSubjectsWithIds(g.id);
+                
+                let r = p.ekranData[g.id]?.rozklads?.[rIdx];
+                if (!r) return;
+                let groupRId = r.id;
+
+                let uniqueSubjects = []; let seen = new Set();
+                subjects.forEach(s => {
+                    if (s.teacherId) { let k1 = `${s.id}_${s.teacherId}`; if(!seen.has(k1)) { seen.add(k1); uniqueSubjects.push({ id: s.id, tId: s.teacherId }); } }
+                    if (s.teacherId2) { let k2 = `${s.id}_${s.teacherId2}`; if(!seen.has(k2)) { seen.add(k2); uniqueSubjects.push({ id: s.id, tId: s.teacherId2 }); } }
+                });
+
+                uniqueSubjects.forEach(s => {
+                    let hours = getMaxRozkladHour(g.id, s.id, groupRId);
+                    if (hours > 0 && s.tId) {
+                        if (!alloc[s.tId]) alloc[s.tId] = {};
+                        alloc[s.tId][gNum] = (alloc[s.tId][gNum] || 0) + hours;
+                    }
+                });
+            });
+            return alloc;
+        }
+
+        window.saveRozklad = function(key, val, skipRender = false) {
+            if (!p.HAS_LICENSE) return;
+            let rIdx = window.currentRozkladIndex;
+            let mode = window.rozkladViewMode;
+            
+            if(!window.rozkladData[rIdx]) window.rozkladData[rIdx] = { oper: {}, reg: {}, times: {}, meta: {}, comments: {} };
+            if(!window.rozkladData[rIdx][mode]) window.rozkladData[rIdx][mode] = {};
+            window.rozkladData[rIdx][mode][key] = val;
+            
+            if (mode === 'oper') window.validateOperatyvny();
+            if (mode === 'reg' && !skipRender) window.renderActiveTable(); 
+            
+            let saveKey = `${rIdx}_${mode}_${key}`;
+            if (window.rozkladSaveTimeouts[saveKey]) clearTimeout(window.rozkladSaveTimeouts[saveKey]);
+            
+            window.rozkladSaveTimeouts[saveKey] = setTimeout(() => {
+                let payload = {}; payload[mode] = {}; payload[mode][key] = val;
+                if(p.api && p.api.saveRozklad) p.api.saveRozklad(`rozklad_${rIdx}`, payload);
+            }, 300);
+        };
+
+        document.addEventListener('click', (e) => {
+            const ddOper = document.getElementById('oper-group-dropdown');
+            const ddReg = document.getElementById('reg-subj-dropdown');
+
+            if (e.target.classList.contains('oper-input')) {
+                ddReg.classList.add('hidden');
+                if (activeOperInput === e.target && !ddOper.classList.contains('hidden')) {
+                    ddOper.classList.add('hidden');
+                    activeOperInput.blur();
+                    activeOperInput = null;
+                } else {
+                    activeOperInput = e.target;
+                    showOperDropdown(e.target);
+                }
+            } else if (e.target.closest('.reg-subj-cell')) {
+                ddOper.classList.add('hidden');
+            } else if (!e.target.closest('#oper-group-dropdown') && !e.target.closest('#reg-subj-dropdown') && !e.target.closest('#prymitky-modal') && !e.target.closest('#reg-comment-modal')) {
+                ddOper.classList.add('hidden');
+                ddReg.classList.add('hidden');
+                activeOperInput = null;
+            }
+        });
+
+        window.handleOperInput = function(el) {
+            window.saveRozklad(el.dataset.key, el.value);
+            showOperDropdown(el);
+        }
+
+        function showOperDropdown(input) {
+            // НОВА ЛОГІКА ДЛЯ РЯДКІВ ВИРОБНИЧОГО НАВЧАННЯ ГРУПИ
+            if (input.classList.contains('vns-group-input')) {
+                let gNum = input.dataset.vnsgroupnum;
+                let gId = input.dataset.vnsgroupid;
+                let listHtml = `<div class="px-3 py-2 hover:bg-red-50 text-red-500 cursor-pointer font-semibold border-b border-slate-100" onclick="window.selectOperGroup('', true)"><i class="fa-solid fa-eraser mr-2"></i>Очистити комірку</div>`;
+                
+                let rIdx = window.currentRozkladIndex;
+                let rId = p.ekranData[gId]?.rozklads?.[rIdx]?.id;
+                let maxHours = rId ? getMaxRozkladHour(gId, 'spec_STATIC_navch', rId) : 0;
+                
+                let usedHours = 0;
+                document.querySelectorAll(`input.vns-group-input[data-vnsgroupid="${gId}"]`).forEach(inp => {
+                    if (inp.value.trim()) usedHours++;
+                });
+                
+                let rem = maxHours - usedHours;
+
+                let parts = input.dataset.key.split('_');
+                let colSuffix = `${parts[2]}_${parts[3]}`; 
+                let isBusy = false;
+                
+                document.querySelectorAll(`input.oper-input:not(.vns-group-input)[data-key$="_${colSuffix}"]`).forEach(inp => {
+                    let val = inp.value.trim();
+                    if (val) {
+                        let groups = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                        if (groups.includes(gNum)) isBusy = true;
+                    }
+                });
+
+                if (rem > 0 && !isBusy) {
+                    listHtml += `<div class="px-3 py-2 hover:bg-yellow-100 cursor-pointer flex justify-between items-center transition-colors" onclick="window.selectOperGroup('${gNum}')">
+                        <span class="font-bold text-slate-700">Група ${gNum} (В/Н)</span>
+                        <span class="bg-yellow-200 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded ml-2 font-bold">зал: ${rem}</span>
+                    </div>`;
+                } else if (isBusy && rem > 0) {
+                    listHtml += `<div class="px-3 py-2 bg-slate-50 flex justify-between items-center cursor-not-allowed opacity-50" title="Група вже на уроці у викладача">
+                        <span class="font-bold text-slate-500">Група ${gNum}</span>
+                        <i class="fa-solid fa-lock text-[10px] text-red-400"></i>
+                    </div>`;
+                } else {
+                    listHtml += `<div class="px-3 py-2 text-slate-400 text-xs text-center italic">Всі години розподілено</div>`;
+                }
+
+                const dropdown = document.getElementById('oper-group-dropdown');
+                document.getElementById('oper-group-list').innerHTML = listHtml;
+                
+                const rect = input.getBoundingClientRect();
+                dropdown.classList.remove('hidden');
+                
+                const dropdownHeight = dropdown.offsetHeight || 100; 
+                const dropdownWidth = dropdown.offsetWidth || 224; // Отримуємо ширину меню
+                const spaceBelow = window.innerHeight - rect.bottom;
+                
+                // Перевірка по вертикалі
+                if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+                    dropdown.style.top = `${rect.top - dropdownHeight}px`; 
+                } else {
+                    dropdown.style.top = `${rect.bottom}px`;
+                }
+                
+                // Перевірка по горизонталі (щоб не вилазило за правий край)
+                let leftPos = rect.left;
+                if (leftPos + dropdownWidth > window.innerWidth) {
+                    leftPos = window.innerWidth - dropdownWidth - 16; // 16px відступ від краю
+                }
+                dropdown.style.left = `${leftPos}px`;
+                return;
+            }
+
+            const tId = input.dataset.teacher;
+            const key = input.dataset.key; 
+            if(!tId || !key) return;
+
+            let parts = key.split('_');
+            let colSuffix = `${parts[1]}_${parts[2]}`;
+
+            let alloc = window.currentAllocations || {};
+            let tAlloc = alloc[tId] || {};
+            let counts = {};
+            
+            let inputs = document.querySelectorAll(`input.oper-input[data-teacher="${tId}"]`);
+            inputs.forEach(inp => {
+                let val = inp.value.trim();
+                if (!val) return;
+                let groups = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                groups.forEach(g => counts[g] = (counts[g] || 0) + 1);
+            });
+
+            let tgs = window.getTeacherGroupSubjects();
+            let incompatibleGroupsInCol = new Set();
+            let allInputsInCol = document.querySelectorAll(`input.oper-input[data-key$="_${colSuffix}"]`);
+            
+            allInputsInCol.forEach(inp => {
+                if (inp.dataset.teacher === tId) return; 
+                let val = inp.value.trim();
+                if (!val) return;
+                let groups = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                groups.forEach(g => {
+                    let s1 = tgs[tId]?.[g] || new Set();
+                    let s2 = tgs[inp.dataset.teacher]?.[g] || new Set();
+                    let intersection = [...s1].filter(x => s2.has(x));
+                    if (intersection.length === 0) incompatibleGroupsInCol.add(g); 
+                });
+            });
+
+            let listHtml = '';
+            let hasAvailable = false;
+            
+            listHtml += `<div class="px-3 py-2 hover:bg-red-50 text-red-500 cursor-pointer font-semibold border-b border-slate-100" onclick="window.selectOperGroup('', true)"><i class="fa-solid fa-eraser mr-2"></i>Очистити комірку</div>`;
+
+            let groupNames = Object.keys(tAlloc).sort((a,b) => a.localeCompare(b, 'uk', {numeric: true}));
+            
+            groupNames.forEach(g => {
+                let req = Math.round(tAlloc[g] || 0);
+                let c = counts[g] || 0;
+                let rem = req - c;
+                let isBlocked = incompatibleGroupsInCol.has(g);
+                
+                if (rem > 0 && !isBlocked) {
+                    hasAvailable = true;
+                    listHtml += `<div class="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors" onclick="window.selectOperGroup('${g}')">
+                        <span class="font-bold text-slate-700">Група ${g}</span>
+                        <span class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded ml-2 font-bold">зал: ${rem}</span>
+                    </div>`;
+                } else if (isBlocked && rem > 0) {
+                    listHtml += `<div class="px-3 py-2 bg-slate-50 flex justify-between items-center cursor-not-allowed opacity-50" title="Група вже на уроці в іншого викладача">
+                        <span class="font-bold text-slate-500">Група ${g}</span>
+                        <i class="fa-solid fa-lock text-[10px] text-red-400"></i>
+                    </div>`;
+                }
+            });
+
+            if (!hasAvailable && incompatibleGroupsInCol.size === 0) {
+                listHtml += `<div class="px-3 py-2 text-slate-400 text-xs text-center italic">Всі години розподілено</div>`;
+            }
+
+            const dropdown = document.getElementById('oper-group-dropdown');
+            document.getElementById('oper-group-list').innerHTML = listHtml;
+            
+            const rect = input.getBoundingClientRect();
+            dropdown.classList.remove('hidden');
+            
+            const dropdownHeight = dropdown.offsetHeight || 100; 
+            const dropdownWidth = dropdown.offsetWidth || 224; // Отримуємо ширину меню
+            const spaceBelow = window.innerHeight - rect.bottom;
+            
+            // Перевірка по вертикалі
+            if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+                dropdown.style.top = `${rect.top - dropdownHeight}px`; 
+            } else {
+                dropdown.style.top = `${rect.bottom}px`;
+            }
+            
+            // Перевірка по горизонталі (щоб не вилазило за правий край)
+            let leftPos = rect.left;
+            if (leftPos + dropdownWidth > window.innerWidth) {
+                leftPos = window.innerWidth - dropdownWidth - 16; // 16px відступ від краю
+            }
+            dropdown.style.left = `${leftPos}px`;
+        }
+
+        window.selectOperGroup = function(g, clear = false) {
+            if(!activeOperInput) return;
+            if (clear) {
+                activeOperInput.value = '';
+            } else {
+                let current = activeOperInput.value.trim();
+                if (current) {
+                    if (current.includes('/')) {
+                        let parts = current.split('/');
+                        if (parts.length < 2) activeOperInput.value = current + '/' + g;
+                        else activeOperInput.value = parts[0] + '/' + g;
+                    } else {
+                        activeOperInput.value = current + '/' + g;
+                    }
+                } else {
+                    activeOperInput.value = g;
+                }
+            }
+            window.saveRozklad(activeOperInput.dataset.key, activeOperInput.value);
+            showOperDropdown(activeOperInput);
+            activeOperInput.focus();
+        };
+
+        window.validateOperatyvny = function() {
+            if (window.rozkladViewMode !== 'oper') return;
+            let alloc = window.currentAllocations || {};
+            let tgs = window.getTeacherGroupSubjects();
+            
+            let columnGroups = {};
+            let allOperInputs = document.querySelectorAll(`input.oper-input`);
+            allOperInputs.forEach(inp => {
+                let val = inp.value.trim();
+                if (!val) return;
+                
+                let key = inp.dataset.key;
+                let isVns = key.startsWith('vnsgrp_');
+                let colKey = isVns ? key.split('_').slice(2).join('_') : key.split('_').slice(1).join('_');
+                let ownerId = isVns ? 'VNS_' + key.split('_')[1] : key.split('_')[0];
+                
+                let groups = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                if (!columnGroups[colKey]) columnGroups[colKey] = {};
+                
+                groups.forEach(g => {
+                    if (!columnGroups[colKey][g]) columnGroups[colKey][g] = [];
+                    columnGroups[colKey][g].push(ownerId);
+                });
+            });
+
+            let conflictingCells = new Set();
+            for (let colKey in columnGroups) {
+                for (let g in columnGroups[colKey]) {
+                    let owners = columnGroups[colKey][g];
+                    if (owners.length > 1) {
+                        let hasConflict = false;
+                        for (let i = 0; i < owners.length; i++) {
+                            for (let j = i + 1; j < owners.length; j++) {
+                                if (owners[i].startsWith('VNS_') || owners[j].startsWith('VNS_')) {
+                                    hasConflict = true;
+                                } else {
+                                    let s1 = tgs[owners[i]]?.[g] || new Set();
+                                    let s2 = tgs[owners[j]]?.[g] || new Set();
+                                    let intersection = [...s1].filter(x => s2.has(x));
+                                    if (intersection.length === 0) hasConflict = true; 
+                                }
+                            }
+                        }
+                        if (hasConflict) owners.forEach(oId => {
+                            if (oId.startsWith('VNS_')) conflictingCells.add(`vnsgrp_${oId.replace('VNS_','')}_${colKey}`);
+                            else conflictingCells.add(`${oId}_${colKey}`);
+                        });
+                    }
+                }
+            }
+            
+            document.querySelectorAll('tr[data-teacher-row]').forEach(tr => {
+                let tId = tr.dataset.teacherRow;
+                let tAlloc = alloc[tId] || {};
+                let counts = {};
+                
+                let inputs = tr.querySelectorAll(`input.oper-input`);
+                inputs.forEach(inp => {
+                    let val = inp.value.trim();
+                    if (!val) return;
+                    let groups = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                    groups.forEach(g => counts[g] = (counts[g] || 0) + 1);
+                });
+                
+                let isFullyAssigned = true;
+                let tooltipLines = [];
+                let hasAllocations = false;
+
+                for (let g in tAlloc) {
+                    let req = Math.round(tAlloc[g] || 0);
+                    if (req > 0) hasAllocations = true;
+                    let c = counts[g] || 0;
+                    let rem = req - c;
+
+                    if (rem > 0) {
+                        isFullyAssigned = false;
+                        tooltipLines.push(`Група ${g}: зал. ${rem} год.`);
+                    }
+                }
+
+                let teacherCell = tr.querySelector('.op-tch');
+                if (teacherCell) {
+                    teacherCell.classList.remove('!bg-[#dcfce7]', 'text-green-800');
+                    teacherCell.removeAttribute('title');
+                    
+                    if (hasAllocations) {
+                        if (isFullyAssigned) {
+                            teacherCell.classList.add('!bg-[#dcfce7]', 'text-green-800');
+                            teacherCell.title = teacherCell.innerText; 
+                        } else {
+                            teacherCell.title = teacherCell.innerText + "\n\nЗалишилось виставити:\n" + tooltipLines.join('\n');
+                        }
+                    } else {
+                        teacherCell.title = teacherCell.innerText;
+                    }
+                }
+                
+                inputs.forEach(inp => {
+                    let val = inp.value.trim();
+                    inp.classList.remove('!bg-pink-100', 'text-pink-800', '!bg-[#dcfce7]', 'text-green-800', 'text-slate-800', 'bg-transparent', 'focus:bg-indigo-50', '!bg-red-200', 'text-red-900');
+                    inp.removeAttribute('title');
+
+                    if (!val) {
+                        inp.classList.add('bg-transparent', 'text-slate-800', 'focus:bg-indigo-50');
+                        return;
+                    }
+                    
+                    let isConflict = conflictingCells.has(inp.dataset.key);
+                    let groups = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                    let isOver = false;
+                    let isComplete = true;
+                    let hasAlloc = false;
+                    
+                    groups.forEach(g => {
+                        let req = Math.round(tAlloc[g] || 0);
+                        if (req === 0) { isOver = true; }
+                        else {
+                            hasAlloc = true;
+                            if (counts[g] > req) isOver = true;
+                            if (counts[g] < req) isComplete = false;
+                        }
+                    });
+                    
+                    if (isConflict) {
+                        inp.classList.add('!bg-red-200', 'text-red-900');
+                        inp.title = "Конфлікт: група призначена іншому викладачу без поділу!";
+                    } else if (isOver) {
+                        inp.classList.add('!bg-pink-100', 'text-pink-800');
+                        inp.title = "Перевищено ліміт годин або група не призначена.";
+                    } else if (isComplete && hasAlloc) {
+                        inp.classList.add('!bg-[#dcfce7]', 'text-green-800');
+                    } else {
+                        inp.classList.add('bg-transparent', 'text-slate-800', 'focus:bg-indigo-50');
+                    }
+                });
+            });
+
+            let vnsInputsByGroup = {};
+            document.querySelectorAll('input.vns-group-input').forEach(inp => {
+                let gId = inp.dataset.vnsgroupid;
+                if (!vnsInputsByGroup[gId]) vnsInputsByGroup[gId] = [];
+                vnsInputsByGroup[gId].push(inp);
+            });
+
+            let rIdx = window.currentRozkladIndex;
+
+            for (let gId in vnsInputsByGroup) {
+                let inputs = vnsInputsByGroup[gId];
+                
+                let rId = p.ekranData[gId]?.rozklads?.[rIdx]?.id;
+                let maxHours = rId ? getMaxRozkladHour(gId, 'spec_STATIC_navch', rId) : 0;
+                
+                let usedHours = 0;
+                inputs.forEach(inp => {
+                    if (inp.value.trim()) usedHours++;
+                });
+
+                let isOver = (usedHours > maxHours);
+                let isComplete = (usedHours === maxHours);
+                let hasAlloc = (maxHours > 0);
+
+                let rowHeader = inputs[0].closest('tr').querySelector('.op-tch');
+                if (rowHeader) {
+                    rowHeader.classList.remove('!bg-[#dcfce7]', 'text-green-800');
+                    if (hasAlloc) {
+                        if (isComplete) {
+                            rowHeader.classList.add('!bg-[#dcfce7]', 'text-green-800');
+                            rowHeader.title = "Виставлено всі години виробничого навчання";
+                        } else {
+                            let rem = maxHours - usedHours;
+                            rowHeader.title = `Залишилось виставити: ${rem > 0 ? rem : 0} год.`;
+                        }
+                    } else {
+                        rowHeader.title = "Години виробничого навчання не призначено";
+                    }
+                }
+
+                inputs.forEach(inp => {
+                    let val = inp.value.trim();
+                    inp.classList.remove('!bg-pink-100', 'text-pink-800', '!bg-red-200', 'text-red-900', '!bg-[#dcfce7]', 'text-green-800', 'bg-transparent', 'text-slate-800');
+                    inp.removeAttribute('title');
+
+                    if (!val) {
+                        inp.classList.add('bg-transparent', 'text-slate-800');
+                        return;
+                    }
+
+                    let isConflict = conflictingCells.has(inp.dataset.key);
+
+                    if (isConflict) {
+                        inp.classList.add('!bg-red-200', 'text-red-900');
+                        inp.title = "Конфлікт: група одночасно на виробничому і у викладача!";
+                    } else if (isOver || !hasAlloc) {
+                        inp.classList.add('!bg-pink-100', 'text-pink-800');
+                        inp.title = hasAlloc ? `Перевищено ліміт (макс: ${maxHours} год, поставлено: ${usedHours})` : "Групі не призначено години в/н!";
+                    } else if (isComplete && hasAlloc) {
+                        inp.classList.add('!bg-[#dcfce7]', 'text-green-800');
+                        inp.title = `Норма виконана (${maxHours} год)`;
+                    } else {
+                        inp.classList.add('bg-transparent', 'text-slate-800');
+                        inp.title = `Поставлено ${usedHours} з ${maxHours} год.`;
+                    }
+                });
+            }
+        };
+
+        window.openRegSubjDropdown = function(gId, dIdx, lIdx, event) {
+            if (!p.HAS_LICENSE) return;
+            if (isDragging || selectedCells.size > 1) return; 
+            
+            event.stopPropagation(); 
+            const dropdown = document.getElementById('reg-subj-dropdown');
+            
+            let cellData = window.currentRegGrid[gId]?.[dIdx]?.[lIdx];
+            if (!cellData || !cellData.tId || cellData.tId === 'VNS' || cellData.availableSubjs.length <= 1) return;
+
+            let usages = window.currentRegUsages[gId] || {};
+            let html = `<div class="px-3 py-2 hover:bg-red-50 text-red-500 cursor-pointer font-bold border-b border-slate-100 text-xs" onclick="window.selectRegSubj('${gId}', ${dIdx}, ${lIdx}, '')"><i class="fa-solid fa-eraser mr-2"></i>Очистити предмет</div>`;
+            
+            let hasOpts = false;
+            cellData.availableSubjs.forEach(s => {
+                let req = s.reqHours || 0;
+                let used = usages[s.id] || 0;
+                let rem = req - used;
+                let isCurrent = cellData.subjId === s.id;
+                
+                if (rem > 0 || isCurrent) {
+                    hasOpts = true;
+                    html += `<div class="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex flex-col transition-colors" onclick="window.selectRegSubj('${gId}', ${dIdx}, ${lIdx}, '${s.id}')">
+                        <div class="font-bold text-slate-800 text-[11px] leading-tight">${getSubjName(s.id)}</div>
+                        <div class="text-[9px] text-indigo-600 font-bold mt-0.5">Залишилось: ${rem > 0 ? rem : 0} год.</div>
+                    </div>`;
+                }
+            });
+
+            if(!hasOpts) html += `<div class="px-3 py-2 text-slate-400 text-xs text-center italic">Всі предмети вичитано</div>`;
+
+            document.getElementById('reg-subj-list').innerHTML = html;
+            dropdown.classList.remove('hidden');
+            
+            const rect = event.currentTarget.getBoundingClientRect();
+            const dropdownHeight = dropdown.offsetHeight; 
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+                dropdown.style.top = `${rect.top - dropdownHeight}px`; 
+            } else {
+                dropdown.style.top = `${rect.bottom}px`;
+            }
+            dropdown.style.left = `${rect.left}px`;
+        };
+
+        window.selectRegSubj = function(gId, dIdx, lIdx, subjId) {
+            window.saveRozklad(`subj_${gId}_${dIdx}_${lIdx}`, subjId);
+            document.getElementById('reg-subj-dropdown').classList.add('hidden');
+        };
+
+        function getSubjName(id) {
+            if (!id) return '';
+            if (id.startsWith('gen_')) {
+                let core = id.replace('gen_', '').replace('_split', '');
+                let s = p.genSubjectsData.find(x => x.id === core);
+                return s ? s.name + (id.includes('_split') ? ' (підгр.)' : '') : id;
+            }
+            if (id.startsWith('spec_')) {
+                if (id.includes('STATIC_pract')) return 'Виробнича практика';
+                if (id.includes('STATIC_navch')) return 'Виробниче навчання';
+                let core = id.replace('spec_', '').replace('_main', '').replace('_split', '');
+                let s = p.specSubjectsAll.find(x => x.id === core);
+                return s ? s.name + (id.includes('_split') ? ' (підгр.)' : '') : id;
+            }
+            return id;
+        }
+
+        function getLastName(fullName) {
+            if (!fullName) return '';
+            return fullName.trim().split(' ')[0];
+        }
+
+        function buildRegGrid(rIdx) {
+            const daysConfig = getDaysConfig();
+            let grid = {}; 
+            let usages = {}; 
+
+            let operData = window.rozkladData[rIdx]?.oper || {};
+            let regData = window.rozkladData[rIdx]?.reg || {};
+
+            p.groupsData.forEach(g => {
+                let gNum = (g.num || g.name).toString();
+                let gName = g.name;
+                grid[g.id] = {};
+                usages[g.id] = {};
+
+                let groupSubjects = getGroupSubjectsWithIds(g.id); 
+                groupSubjects.forEach(s => {
+                    s.reqHours = getMaxRozkladHour(g.id, s.id, p.ekranData[g.id]?.rozklads?.[rIdx]?.id);
+                });
+
+                daysConfig.forEach((d, dIdx) => {
+                    grid[g.id][dIdx] = {};
+                    for(let l = 1; l <= d.count; l++) {
+                        let tId = null;
+                        let tName = '';
+                        let activeTeachers = [];
+
+                        for (let t of p.teachersData) {
+                            let val = operData[`${t.id}_${dIdx}_${l}`] || "";
+                            let grps = val.split(/[\/\,]/).map(s=>s.trim()).filter(Boolean);
+                            if (grps.includes(gNum) || grps.includes(gName)) {
+                                activeTeachers.push(t);
+                            }
+                        }
+
+                        let isVns = false;
+                        let vnsVal = operData[`vnsgrp_${g.id}_${dIdx}_${l}`] || "";
+                        let vnsGrps = vnsVal.split(/[\/\,]/).map(s=>s.trim()).filter(Boolean);
+
+                        if (vnsGrps.includes(gNum) || vnsGrps.includes(gName)) {
+                            isVns = true;
+                            let master1Id = p.workloadMap[`spec_STATIC_navch_${g.id}`]?.teacherId;
+                            let master2Id = p.workloadMap[`spec_STATIC_navch_${g.id}`]?.teacherId2;
+
+                            let masterNames = [];
+                            if(master1Id) masterNames.push(p.teachersData.find(t=>t.id===master1Id)?.name || '');
+                            if(master2Id) masterNames.push(p.teachersData.find(t=>t.id===master2Id)?.name || '');
+
+                            tId = master1Id || 'VNS'; 
+                            tName = masterNames.length > 0 ? masterNames.map(n => getLastName(n)).join(' / ') : 'Майстер в/н'; 
+                        } else if (activeTeachers.length > 0) {
+                            tId = activeTeachers[0].id;
+                            tName = activeTeachers.map(t => getLastName(t.name)).join(' / ');
+                        }
+
+                        let cell = { tId, tName, subjId: null, subjName: '', room: regData[`room_${g.id}_${dIdx}_${l}`] || '', availableSubjs: [], isAuto: false };
+
+                        if (isVns) {
+                            cell.subjId = 'spec_STATIC_navch';
+                            cell.subjName = 'Виробниче навчання';
+                            cell.isAuto = true;
+                        } else if (tId) {
+                            
+                            let teacherSubjIds = activeTeachers.map(at => {
+                                return groupSubjects.filter(s => s.teacherId === at.id || s.teacherId2 === at.id).map(s => s.id);
+                            });
+                            
+                            let validSubjIds = [];
+                            
+                            if (activeTeachers.length > 1) {
+                                let commonSubjIds = teacherSubjIds[0].filter(id => teacherSubjIds.every(ts => ts.includes(id)));
+                                let singleSubjTeacher = teacherSubjIds.find(ts => ts.length === 1);
+                                
+                                if (singleSubjTeacher) {
+                                    validSubjIds = singleSubjTeacher; 
+                                } else if (commonSubjIds.length > 0) {
+                                    validSubjIds = commonSubjIds; 
+                                } else {
+                                    validSubjIds = [...new Set(teacherSubjIds.flat())]; 
+                                }
+                            } else {
+                                validSubjIds = [...new Set(teacherSubjIds.flat())];
+                            }
+                            
+                            let uniqueSubjs = validSubjIds.map(id => groupSubjects.find(s => s.id === id)).filter(Boolean);
+                            cell.availableSubjs = uniqueSubjs;
+
+                            let savedSubjId = regData[`subj_${g.id}_${dIdx}_${l}`];
+
+                            if (savedSubjId && uniqueSubjs.some(s => s.id === savedSubjId)) {
+                                cell.subjId = savedSubjId;
+                                cell.subjName = getSubjName(savedSubjId);
+                            } else if (uniqueSubjs.length === 1) {
+                                cell.subjId = uniqueSubjs[0].id;
+                                cell.subjName = getSubjName(uniqueSubjs[0].id);
+                                cell.isAuto = true;
+                            }
+                        }
+
+                        if (cell.subjId) {
+                            usages[g.id][cell.subjId] = (usages[g.id][cell.subjId] || 0) + 1;
+                        }
+
+                        grid[g.id][dIdx][l] = cell;
+                    }
+                });
+            });
+
+            return { grid, usages };
+        }
+        
+        function getRegCommentsHtml(groupsArray) {
+            const daysConfig = getDaysConfig();
+            let rIdx = window.currentRozkladIndex;
+            let comments = window.rozkladData[rIdx]?.comments || {};
+            let html = '';
+            
+            groupsArray.forEach(g => {
+                let groupTexts = new Set();
+                for(let d=0; d<daysConfig.length; d++) {
+                    for(let l=1; l<=daysConfig[d].count; l++) {
+                        let cKey = `${g.id}_${d}_${l}`;
+                        if(comments[cKey] && comments[cKey].text) {
+                            groupTexts.add(comments[cKey].text);
+                        }
+                    }
+                }
+                if (groupTexts.size > 0) {
+                    html += `<div class="mb-1"><span class="font-bold">Група ${g.num || g.name}:</span> ${Array.from(groupTexts).join('; ')}</div>`;
+                }
+            });
+            return html;
+        }
+
+        window.openRegCommentModal = function() {
+            if(selectedCells.size === 0) { alert('Спочатку виділіть комірки.'); return; }
+            let existingText = '';
+            let existingColor = '#f59e0b';
+            let hasComment = false;
+            let rIdx = window.currentRozkladIndex;
+            let comments = window.rozkladData[rIdx]?.comments || {};
+
+            for (let id of selectedCells) {
+                let td = document.getElementById(id);
+                if (td && td.dataset.groupid) {
+                    let cKey = `${td.dataset.groupid}_${td.dataset.didx}_${td.dataset.lidx}`;
+                    if (comments[cKey] && comments[cKey].text) {
+                        existingText = comments[cKey].text;
+                        existingColor = comments[cKey].color || existingColor;
+                        hasComment = true;
+                        break; 
+                    }
+                }
+            }
+
+            document.getElementById('reg-comment-text').value = existingText;
+            document.getElementById('reg-comment-color').value = existingColor;
+            
+            if (hasComment) { document.getElementById('btn-delete-reg-comment').classList.remove('hidden'); } 
+            else { document.getElementById('btn-delete-reg-comment').classList.add('hidden'); }
+
+            document.getElementById('reg-comment-modal').classList.remove('hidden');
+            document.getElementById('reg-comment-text').focus();
+        };
+
+        window.deleteRegComment = async function() {
+            if(selectedCells.size === 0) return;
+            let rIdx = window.currentRozkladIndex;
+            if(!window.rozkladData[rIdx].comments) window.rozkladData[rIdx].comments = {};
+
+            selectedCells.forEach(id => {
+                let td = document.getElementById(id);
+                if (td && td.dataset.groupid) {
+                    let cKey = `${td.dataset.groupid}_${td.dataset.didx}_${td.dataset.lidx}`;
+                    delete window.rozkladData[rIdx].comments[cKey];
+                }
+            });
+
+            if(p.api && p.api.saveRozklad) await p.api.saveRozklad(`rozklad_${rIdx}`, { comments: window.rozkladData[rIdx].comments });
+            document.getElementById('reg-comment-modal').classList.add('hidden');
+            window.renderActiveTable();
+            clearSelection();
+        };
+
+        window.saveRegComment = async function() {
+            if(selectedCells.size === 0) return;
+            let text = document.getElementById('reg-comment-text').value.trim();
+            let color = document.getElementById('reg-comment-color').value;
+            
+            if (text === '') { window.deleteRegComment(); return; }
+
+            let rIdx = window.currentRozkladIndex;
+            if(!window.rozkladData[rIdx].comments) window.rozkladData[rIdx].comments = {};
+
+            selectedCells.forEach(id => {
+                let td = document.getElementById(id);
+                if (td && td.dataset.groupid) {
+                    let cKey = `${td.dataset.groupid}_${td.dataset.didx}_${td.dataset.lidx}`;
+                    window.rozkladData[rIdx].comments[cKey] = { text, color };
+                }
+            });
+
+            if(p.api && p.api.saveRozklad) await p.api.saveRozklad(`rozklad_${rIdx}`, { comments: window.rozkladData[rIdx].comments });
+            document.getElementById('reg-comment-modal').classList.add('hidden');
+            window.renderActiveTable();
+            clearSelection();
+        };
+
+        function renderOperatyvny() {
+            const daysConfig = getDaysConfig();
+            let rIdx = window.currentRozkladIndex;
+            window.currentAllocations = calculateAllocations(rIdx);
+            let data = window.rozkladData[rIdx]?.oper || {};
+
+            let html = `<div class="overflow-auto flex-1 w-full bg-white relative table-wrapper">`;
+            html += `<table class="w-full text-left text-sm whitespace-nowrap excel-table relative bg-white" id="table-export">`;
+            
+            // 1. ШАПКА
+            html += `<thead><tr style="height: 30px;">
+                <th rowspan="2" class="p-2 bg-slate-200 op-num border-r border-slate-300 text-center z-top-left" style="top:0;">№</th>
+                <th rowspan="2" class="p-2 bg-slate-200 op-tch !border-r-2 !border-r-slate-800 text-center z-top-left" style="top:0;">Викладач</th>`;
+            daysConfig.forEach(d => { html += `<th colspan="${d.count}" class="p-1 bg-indigo-100 text-center !border-r-2 !border-r-slate-800 font-bold sticky top-0 z-top text-indigo-900 shadow-sm">${d.name}</th>`; });
+            html += `</tr><tr style="height: 24px;">`;
+            daysConfig.forEach(d => { 
+                for(let l=1; l<=d.count; l++) { 
+                    let bClass = (l === d.count) ? "!border-r-2 !border-r-slate-800" : "border-r border-r-slate-300";
+                    html += `<th class="p-1 bg-slate-100 text-center ${bClass} font-bold text-xs sticky top-[30px] z-top shadow-sm w-[45px] min-w-[45px]">${l}</th>`; 
+                } 
+            });
+            html += `</tr></thead><tbody>`;
+
+            let activeTeachers = p.teachersData.filter(t => {
+                if (t.position !== 'Майстер в/н') return true; 
+                let tAlloc = window.currentAllocations[t.id];
+                if (!tAlloc) return false;
+                for(let g in tAlloc) if(tAlloc[g] > 0) return true;
+                return false;
+            });
+
+            // 2. ВИКЛАДАЧІ
+            activeTeachers.forEach((t, i) => {
+                html += `<tr class="hover:bg-slate-50 transition-colors" data-teacher-row="${t.id}">
+                    <td class="p-1 op-num bg-white text-center font-bold text-slate-500 border-r border-slate-300 z-left">${i+1}</td>
+                    <td class="p-1 op-tch bg-white font-bold text-slate-800 !border-r-2 !border-r-slate-800 truncate z-left" title="${t.name}">${t.name}</td>`;
+                
+                daysConfig.forEach((d, dIdx) => {
+                    for(let l=1; l<=d.count; l++) {
+                        let bClass = (l === d.count) ? "!border-r-2 !border-r-slate-800" : "border-r border-r-slate-300";
+                        let key = `${t.id}_${dIdx}_${l}`;
+                        let val = data[key] || '';
+                        html += `<td class="p-0 ${bClass} selectable-cell">
+                            <input type="text" class="oper-input w-full h-full text-center p-1 outline-none font-bold bg-transparent text-slate-800 transition-colors" 
+                                   data-teacher="${t.id}" data-key="${key}" value="${val}" 
+                                   oninput="window.handleOperInput(this)" autocomplete="off" ${!p.HAS_LICENSE ? 'disabled' : ''}>
+                        </td>`;
+                    }
+                });
+                html += `</tr>`;
+            });
+
+            // 2.5. ПРИМІТКИ ДЛЯ ДРУКУ
+            let prymitkyText = window.rozkladData[rIdx]?.prymitky || '';
+            let totalCols = 2; daysConfig.forEach(d => totalCols += d.count);
+            
+            if (prymitkyText) {
+                let safeHtml = prymitkyText.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                html += `<tr class="print-table-row" style="display: none;">
+                    <td colspan="${totalCols}" class="p-2 text-xs whitespace-pre-wrap border-t border-slate-300 bg-white"><strong>Примітки:</strong><br>${safeHtml}</td>
+                </tr>`;
+            }
+
+            // 3. ЗАГОЛОВОК ВИРОБНИЧОГО НАВЧАННЯ
+            html += `<tr class="bg-yellow-100 transition-colors border-y-2 border-yellow-300 print-page-break-before">
+                <td class="p-1 op-num bg-yellow-200 text-center font-bold text-slate-500 border-r border-slate-300 z-left"></td>
+                <td class="p-2 op-tch bg-yellow-200 font-black uppercase text-slate-800 !border-r-2 !border-r-slate-800 text-center z-left">Виробниче навчання</td>`;
+            daysConfig.forEach((d, dIdx) => {
+                for(let l=1; l<=d.count; l++) {
+                    let bClass = (l === d.count) ? "!border-r-2 !border-r-slate-800" : "border-r border-r-slate-300";
+                    html += `<td class="p-0 ${bClass} bg-yellow-50/50">
+                        <input type="text" class="w-full h-full cursor-not-allowed" disabled>
+                    </td>`;
+                }
+            });
+            html += `</tr>`;
+
+            // 4. ГРУПИ В/Н
+            p.groupsData.forEach((g) => {
+                let rId = p.ekranData[g.id]?.rozklads?.[window.currentRozkladIndex]?.id;
+                let maxHours = rId ? getMaxRozkladHour(g.id, 'spec_STATIC_navch', rId) : 0;
+                
+                let hasData = false;
+                daysConfig.forEach((d, dIdx) => {
+                    for(let l=1; l<=d.count; l++) {
+                        if (data[`vnsgrp_${g.id}_${dIdx}_${l}`]) hasData = true;
+                    }
+                });
+
+                if (maxHours === 0 && !hasData) return;
+
+                let gNum = g.num || g.name;
+                html += `<tr class="hover:bg-yellow-50 transition-colors">
+                    <td class="p-1 op-num bg-white text-center font-bold text-slate-400 border-r border-slate-300 z-left text-xs">в/н</td>
+                    <td class="p-1 op-tch bg-white font-bold text-slate-700 !border-r-2 !border-r-slate-800 text-right pr-4 z-left text-xs">Вир. навчання № ${gNum}</td>`;
+                
+                daysConfig.forEach((d, dIdx) => {
+                    for(let l=1; l<=d.count; l++) {
+                        let bClass = (l === d.count) ? "!border-r-2 !border-r-slate-800" : "border-r border-r-slate-300";
+                        let key = `vnsgrp_${g.id}_${dIdx}_${l}`;
+                        let val = data[key] || '';
+                        html += `<td class="p-0 ${bClass} selectable-cell">
+                            <input type="text" class="oper-input vns-group-input w-full h-full text-center p-1 outline-none font-bold bg-transparent text-slate-800 transition-colors focus:bg-yellow-100" 
+                                   data-vnsgroupid="${g.id}" data-vnsgroupnum="${gNum}" data-key="${key}" value="${val}" 
+                                   oninput="window.handleOperInput(this)" autocomplete="off" ${!p.HAS_LICENSE ? 'disabled' : ''}>
+                        </td>`;
+                    }
+                });
+                html += `</tr>`;
+            });
+            
+            html += `</tbody>`;
+
+            if (prymitkyText) {
+                let safeHtml = prymitkyText.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                html += `<tfoot class="sticky-bottom z-50 relative print-hide-strict"><tr><td colspan="${totalCols}" class="p-0 text-left font-medium text-slate-800 bg-white border-t border-slate-300 text-sm shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+                    <details class="p-2 px-4 bg-yellow-50/50 print-hide">
+                        <summary class="font-bold cursor-pointer text-slate-700 outline-none hover:text-yellow-700 select-none">Примітки (розгорнути)</summary>
+                        <div class="mt-2 whitespace-pre-wrap">${safeHtml}</div>
+                    </details>
+                    <div class="hidden print-block p-2 px-4 text-xs whitespace-pre-wrap"><strong>Примітки:</strong><br>${safeHtml}</div>
+                </td></tr></tfoot>`;
+            }
+
+            html += `</table></div>`;
+            document.getElementById('rozklad-table-container').innerHTML = html;
+            window.validateOperatyvny();
+        }
+
+        function generateRegTable(groupsArray, isPrint = false) {
+            const daysConfig = getDaysConfig();
+            let rIdx = window.currentRozkladIndex;
+            let meta = window.rozkladData[rIdx]?.meta || {};
+            let timesData = window.rozkladData[rIdx]?.times || {};
+            let regData = window.rozkladData[rIdx]?.reg || {};
+            let commentsData = window.rozkladData[rIdx]?.comments || {};
+            let lunchAfter = meta.lunchAfter !== undefined ? parseInt(meta.lunchAfter) : 4;
+
+            let tableClass = isPrint ? 'w-full text-left text-[10px] excel-table bg-white table-fixed border-collapse' : 'w-full text-left text-sm whitespace-nowrap excel-table relative bg-white';
+            let tableId = isPrint ? '' : 'id="table-export"';
+            
+            const bR = isPrint ? 'border-right: 2px solid black !important;' : 'border-right: 3px solid #1e293b !important;';
+            const bB = isPrint ? 'border-bottom: 2px solid black !important;' : 'border-bottom: 3px solid #1e293b !important;';
+            const normB = isPrint ? 'border-bottom: 1px solid black !important;' : 'border-bottom: 1px solid #cbd5e1 !important;';
+            const bRbB = `${bR} ${bB}`;
+            
+            const zTL = isPrint ? '' : 'z-index: 110 !important; background-color: #e2e8f0 !important; position: sticky !important; top: 0 !important;';
+            const zT1 = isPrint ? '' : 'z-index: 105 !important; background-color: #ffffff !important; position: sticky !important; top: 0 !important;';
+            const zT2 = isPrint ? '' : 'z-index: 105 !important; background-color: #ffffff !important; position: sticky !important; top: 32px !important;';
+            const zT3 = isPrint ? '' : 'z-index: 105 !important; background-color: #e2e8f0 !important; position: sticky !important; top: 58px !important;';
+            
+            const zL_gray = isPrint ? '' : 'z-index: 80 !important; background-color: #f1f5f9 !important;';
+            const zL_white = isPrint ? '' : 'z-index: 80 !important; background-color: #ffffff !important;';
+
+            let tHtml = `<table class="${tableClass}" ${tableId}>`;
+            
+            if (isPrint) {
+                tHtml += `<colgroup>
+                    <col style="width: 2%;">
+                    <col style="width: 2%;">
+                    <col style="width: 6%;">`;
+                groupsArray.forEach(() => {
+                    tHtml += `
+                    <col style="width: 10.5%;">
+                    <col style="width: 2.5%;">
+                    <col style="width: 5%;">`;
+                });
+                tHtml += `</colgroup>`;
+            }
+
+            tHtml += `<thead class="${isPrint ? '' : 'sticky top-0 z-[100]'}"><tr>`;
+            
+            tHtml += `<th rowspan="3" class="${isPrint ? 'p-0 border-r border-black' : 'reg-day p-1 border-r border-slate-300 shadow-sm text-sm'}" style="${zTL} ${bB}"><div class="mx-auto" style="writing-mode: vertical-rl; transform: rotate(180deg);">День тижня</div></th>`;
+            tHtml += `<th rowspan="3" class="${isPrint ? 'p-0 border-r border-black' : 'reg-num p-1 border-r border-slate-300 shadow-sm text-sm'}" style="${zTL} ${bB}"><div class="mx-auto" style="writing-mode: vertical-rl; transform: rotate(180deg);">Номер уроку</div></th>`;
+            tHtml += `<th rowspan="3" class="${isPrint ? 'p-0' : 'reg-time p-1 shadow-sm text-sm'}" style="${zTL} ${bRbB}">Години<br>заняття</th>`;
+            
+            groupsArray.forEach(g => {
+                let grpClass = isPrint ? 'p-0 text-center font-bold' : 'p-1 text-center font-bold shadow-sm w-[210px] min-w-[210px] max-w-[210px] text-sm';
+                tHtml += `<th colspan="3" class="${grpClass}" style="${zT1} ${bR}">
+                    <div class="flex justify-between px-1 text-sm">
+                        <span>Група №: <span class="text-indigo-700 text-base">${g.num}</span></span>
+                        <span>Курс: <span class="text-indigo-700">${g.course}</span></span>
+                    </div>
+                </th>`;
+            });
+            tHtml += `</tr><tr>`;
+            
+            groupsArray.forEach(g => {
+                let pClass = isPrint ? 'p-0 text-center text-[9px] italic truncate overflow-hidden' : 'p-1 text-center text-xs shadow-sm truncate max-w-[210px] overflow-hidden';
+                tHtml += `<th colspan="3" class="${pClass}" style="${zT2} ${bR}">
+                    <span class="font-normal italic block w-full whitespace-nowrap overflow-hidden text-ellipsis" title="${g.name}">${g.name}</span>
+                </th>`;
+            });
+            tHtml += `</tr><tr>`;
+
+            groupsArray.forEach(g => {
+                let thSubj = isPrint ? 'p-0 border-r border-black text-center text-[8px] font-bold' : 'p-1 text-center text-xs font-bold border-r border-slate-300 shadow-sm w-[100px] min-w-[100px]';
+                let thRoom = isPrint ? 'p-0 border-r border-black text-center text-[8px] font-bold' : 'p-1 text-center text-xs font-bold border-r border-slate-300 shadow-sm w-[35px] min-w-[35px] max-w-[35px]';
+                let thTeach = isPrint ? 'p-0 text-center text-[8px] font-bold' : 'p-1 text-center text-xs font-bold shadow-sm w-[75px] min-w-[75px]';
+                
+                tHtml += `<th class="${thSubj}" style="${zT3} ${bB}">Предмет</th>
+                          <th class="${thRoom}" style="${zT3} ${bB}">Каб.</th>
+                          <th class="${thTeach}" style="${zT3} ${bRbB}">Викладач</th>`;
+            });
+            tHtml += `</tr></thead><tbody>`;
+
+            daysConfig.forEach((d, dIdx) => {
+                let isLastDay = (dIdx === daysConfig.length - 1);
+                let extraRows = isLastDay ? 2 : 0;
+                let hasLunch = (lunchAfter > 0 && d.count > lunchAfter);
+                let totalRows = d.count + (hasLunch ? 1 : 0) + extraRows;
+                
+                for(let l=1; l<=d.count; l++) {
+                    tHtml += `<tr>`;
+                    let isLastLesson = (l === d.count && extraRows === 0);
+                    let isBeforeLunch = (l === lunchAfter);
+                    let rowBottomBorder = isLastLesson ? bB : normB;
+                    
+                    if (l === 1) {
+                        let dayClass = isPrint ? 'p-0 border-r border-black text-center font-bold uppercase text-[9px]' : `p-1 text-center font-bold uppercase tracking-widest border-r border-slate-300 reg-day text-xs`;
+                        tHtml += `<td rowspan="${totalRows}" class="${dayClass}" style="${zL_gray} ${bB}"><div class="mx-auto" style="writing-mode: vertical-rl; transform: rotate(180deg);">${d.name}</div></td>`;
+                    }
+
+                    let numClass = isPrint ? `p-0 text-center font-bold border-r border-black` : `p-1 text-center font-bold border-r border-slate-300 reg-num text-sm`;
+                    tHtml += `<td class="${numClass}" style="${zL_white} ${rowBottomBorder}">${l}</td>`;
+
+                    let timeVal = timesData[l] || '';
+                    if (isPrint) {
+                        tHtml += `<td class="p-0 text-center text-[9px] font-bold" style="${bR} ${rowBottomBorder}">${timeVal}</td>`;
+                    } else {
+                        tHtml += `<td class="p-0 reg-time" style="${zL_white} ${bR} ${rowBottomBorder}">
+                            <input type="text" class="time-input-${l} w-full h-full text-center outline-none bg-transparent text-xs font-bold focus:bg-indigo-50" value="${timeVal}" oninput="window.saveRozkladTime(${l}, this.value)" ${!p.HAS_LICENSE ? 'disabled' : ''}>
+                        </td>`;
+                    }
+
+                    groupsArray.forEach(g => {
+                        let cell = window.currentRegGrid[g.id][dIdx][l];
+                        let cellKey = `${g.id}_${dIdx}_${l}`;
+                        let cmt = commentsData[cellKey];
+                        
+                        if (isPrint) {
+                            let subjName = cell.subjName || '';
+                            let room = regData[`room_${cellKey}`] || '';
+                            let teach = cell.tName || '';
+                            
+                            tHtml += `<td class="p-0 border-r border-black text-[9px] font-bold text-center align-middle" style="${rowBottomBorder}"><div class="truncate-print mx-auto" title="${subjName}">${subjName}</div></td>
+                                      <td class="p-0 border-r border-black text-[9px] font-bold text-center" style="${rowBottomBorder}">${room}</td>
+                                      <td class="p-0 text-[8px] text-center align-middle" style="${bR} ${rowBottomBorder}"><div class="truncate-print mx-auto" style="max-width: 45px;" title="${teach}">${teach}</div></td>`;
+                        } else {
+                            let pointerClass = (!cell.isAuto && cell.availableSubjs.length > 1 && cell.tId && cell.tId !== 'VNS') ? 'cursor-pointer hover:bg-indigo-50 reg-subj-cell' : '';
+                            let subjDisplay = cell.subjName || (cell.tId && !cell.isAuto && cell.availableSubjs.length > 1 ? '<span class="text-slate-300 text-[9px]">Оберіть...</span>' : '');
+
+                            let triHtml = (cmt && cmt.text) ? `<div class="comment-triangle" style="border-bottom-color: ${cmt.color}"></div>` : '';
+                            let titleAttr = (cmt && cmt.text) ? `title="${cmt.text.replace(/"/g, '&quot;')}"` : '';
+
+                            tHtml += `<td id="td_reg_${cellKey}" data-groupid="${g.id}" data-didx="${dIdx}" data-lidx="${l}" class="p-0 border-r border-slate-300 bg-white selectable-cell relative ${pointerClass}" style="${rowBottomBorder}" ${pointerClass ? `onclick="window.openRegSubjDropdown('${g.id}', ${dIdx}, ${l}, event)"` : ''} ${titleAttr}>
+                                <div class="w-full h-full p-1 text-xs font-bold text-slate-800 flex items-center justify-center text-center break-words leading-tight relative" style="min-height:30px;">
+                                    ${subjDisplay}
+                                    ${triHtml}
+                                </div>
+                            </td>`;
+                            
+                            tHtml += `<td class="p-0 border-r border-slate-300 bg-white selectable-cell w-[35px] min-w-[35px] max-w-[35px]" style="${rowBottomBorder}">
+                                <input type="text" class="w-full h-full text-center outline-none bg-transparent text-xs font-bold focus:bg-indigo-50" value="${cell.room}" oninput="window.saveRozklad('room_${cellKey}', this.value, true)" ${!p.HAS_LICENSE ? 'disabled' : ''}>
+                            </td>`;
+                            
+                            tHtml += `<td class="p-1 bg-white text-[11px] text-slate-600 text-center break-words leading-tight" style="${bR} ${rowBottomBorder}">${cell.tName}</td>`;
+                        }
+                    });
+                    tHtml += `</tr>`;
+
+                    if (hasLunch && isBeforeLunch) {
+                        tHtml += `<tr>`;
+                        if (isPrint) {
+                            tHtml += `<td class="p-0 text-center font-bold border-r border-black bg-gray-50" style="${normB}"></td>`;
+                            tHtml += `<td class="p-0 text-center bg-gray-50" style="${bR} ${normB}"></td>`;
+                            groupsArray.forEach(g => {
+                                tHtml += `<td colspan="3" class="p-0 text-center font-bold italic text-[9px] text-slate-500 uppercase bg-gray-50 tracking-[0.3em]" style="${bR} ${normB}">Обід</td>`;
+                            });
+                        } else {
+                            tHtml += `<td class="p-1 text-center font-bold border-r border-slate-300 reg-num text-sm" style="${zL_gray} ${normB}"></td>`;
+                            tHtml += `<td class="p-1 text-center font-bold reg-time text-sm" style="${zL_gray} ${bR} ${normB}"></td>`;
+                            groupsArray.forEach(g => {
+                                tHtml += `<td colspan="3" class="p-1 text-center font-bold italic text-slate-400 bg-slate-50 uppercase tracking-widest text-xs" style="${bR} ${normB}">Обід</td>`;
+                            });
+                        }
+                        tHtml += `</tr>`;
+                    }
+                }
+                
+                if (isLastDay) {
+                    for (let e = 1; e <= 2; e++) {
+                        tHtml += `<tr>`;
+                        let isLastExtra = (e === 2);
+                        let rowBottomBorder = isLastExtra ? bB : normB;
+                        
+                        let fakeNum = d.count + e;
+                        let numClass = isPrint ? `p-0 text-center font-bold border-r border-black` : `p-1 text-center font-bold border-r border-slate-300 reg-num text-sm`;
+                        tHtml += `<td class="${numClass}" style="${zL_white} ${rowBottomBorder}">${fakeNum}</td>`;
+                        
+                        let timeKey = `last_ex${e}`;
+                        let timeVal = timesData[timeKey] || '';
+                        if (isPrint) {
+                            tHtml += `<td class="p-0 text-center text-[9px] font-bold" style="${bR} ${rowBottomBorder}">${timeVal}</td>`;
+                        } else {
+                            tHtml += `<td class="p-0 reg-time" style="${zL_white} ${bR} ${rowBottomBorder}">
+                                <input type="text" class="time-input-${timeKey} w-full h-full text-center outline-none bg-transparent text-xs font-bold focus:bg-indigo-50" value="${timeVal}" oninput="window.saveRozkladTime('${timeKey}', this.value)" ${!p.HAS_LICENSE ? 'disabled' : ''}>
+                            </td>`;
+                        }
+                        
+                        groupsArray.forEach(g => {
+                            let cellKey = `last_ex${e}_${g.id}`;
+                            let val = regData[cellKey] || '';
+                            if (isPrint) {
+                                tHtml += `<td colspan="3" class="p-0 text-[10px] font-bold text-center align-middle" style="${bR} ${rowBottomBorder}"><div class="truncate-print mx-auto w-full max-w-[150px]">${val}</div></td>`;
+                            } else {
+                                tHtml += `<td colspan="3" class="p-0 bg-white selectable-cell" style="${bR} ${rowBottomBorder}">
+                                    <input type="text" class="w-full h-full text-center outline-none bg-transparent text-xs font-bold focus:bg-indigo-50" value="${val}" oninput="window.saveRozklad('${cellKey}', this.value, true)" ${!p.HAS_LICENSE ? 'disabled' : ''}>
+                                </td>`;
+                            }
+                        });
+                        tHtml += `</tr>`;
+                    }
+                }
+            });
+            tHtml += `</tbody></table>`;
+            return tHtml;
+        }
+
+        function renderZvychainy() {
+            let rIdx = window.currentRozkladIndex;
+            let meta = window.rozkladData[rIdx]?.meta || {};
+            
+            let lunchSel = document.getElementById('lunch-select');
+            if(lunchSel) lunchSel.value = meta.lunchAfter !== undefined ? meta.lunchAfter : 4;
+            
+            let gridData = buildRegGrid(rIdx);
+            window.currentRegGrid = gridData.grid;
+            window.currentRegUsages = gridData.usages;
+
+            let screenHtml = `<div class="flex flex-col h-full w-full print-hide">`;
+            
+            screenHtml += `
+            <div class="flex justify-between items-start w-full p-4 bg-white shrink-0 border-b border-slate-200 z-50">
+                <div class="w-1/3 text-left">
+                    <div class="font-bold text-xs mb-1">"ПОГОДЖЕНО"</div>
+                    ${buildSigSelect('sigTopL', meta.sigTopL)}
+                </div>
+                <div class="w-1/3 text-center">
+                    <div class="text-xl font-bold uppercase tracking-widest text-slate-800">Розклад уроків</div>
+                    <div class="text-sm font-medium italic text-slate-700">${getActiveRozkladDateString()}</div>
+                </div>
+                <div class="w-1/3 flex flex-col items-end">
+                    <div class="font-bold text-xs mb-1 pr-12">"ЗАТВЕРДЖУЮ"</div>
+                    <div class="flex items-end justify-end gap-2 w-full mt-1">
+                        ${buildSigSelect('sigTopR', meta.sigTopR, window.formatApprDate(meta.approvalDate))}
+                        <input type="date" value="${meta.approvalDate || ''}" onchange="window.saveRozkladMeta('approvalDate', this.value)" class="print-hide border border-slate-300 rounded p-1 text-xs outline-none bg-white cursor-pointer h-[26px]">
+                    </div>
+                </div>
+            </div>`;
+
+            screenHtml += `<div class="flex-1 overflow-auto w-full bg-slate-50 relative table-wrapper select-none">`;
+            screenHtml += generateRegTable(p.groupsData, false);
+            screenHtml += `</div>`;
+
+            let commentsHtml = getRegCommentsHtml(p.groupsData);
+
+            screenHtml += `
+            <div class="w-full shrink-0 bg-white border-t border-slate-300 z-50">`;
+            if (commentsHtml) {
+                screenHtml += `
+                <details class="px-4 py-2 border-b border-slate-200 text-xs bg-amber-50/30">
+                    <summary class="font-bold cursor-pointer text-slate-700 outline-none hover:text-amber-700 select-none">Коментарі (розгорнути)</summary>
+                    <div class="mt-2 text-left font-medium text-slate-800 overflow-y-auto max-h-32 pr-2">${commentsHtml}</div>
+                </details>`;
+            }
+            screenHtml += `
+                <div class="flex justify-between p-4">
+                    <div>${buildSigSelect('sigBot1', meta.sigBot1)}</div>
+                    <div>${buildSigSelect('sigBot2', meta.sigBot2)}</div>
+                    <div>${buildSigSelect('sigBot3', meta.sigBot3)}</div>
+                </div>
+            </div>`;
+            screenHtml += `</div>`;
+
+            let printHtml = '<div class="hidden print-block w-full">';
+            const chunks = [];
+            let groupsPerPage = window.currentPrintGroupsPerPage || 5;
+            
+            for (let i = 0; i < p.groupsData.length; i += groupsPerPage) {
+                chunks.push(p.groupsData.slice(i, i + groupsPerPage));
+            }
+
+            chunks.forEach((chunk, chunkIdx) => {
+                printHtml += `<div class="page-break-print">`;
+                printHtml += `
+                <div class="flex justify-between items-start w-full mb-2 text-xs">
+                    <div class="w-1/3 text-left">
+                        <div class="font-bold">"ПОГОДЖЕНО"</div>
+                        ${getSigPrintHtml('sigTopL', meta.sigTopL)}
+                    </div>
+                    <div class="w-1/3 text-center">
+                        <div class="text-lg font-bold uppercase tracking-widest">Розклад уроків</div>
+                        <div class="text-xs font-medium italic">${getActiveRozkladDateString()}</div>
+                    </div>
+                    <div class="w-1/3 text-right">
+                        <div class="font-bold pr-12">"ЗАТВЕРДЖУЮ"</div>
+                        ${getSigPrintHtml('sigTopR', meta.sigTopR, window.formatApprDate(meta.approvalDate))}
+                    </div>
+                </div>`;
+
+                printHtml += generateRegTable(chunk, true);
+
+                let chunkComments = getRegCommentsHtml(chunk);
+                if (chunkComments) {
+                    printHtml += `<div class="mt-2 text-xs"><strong>Коментарі:</strong><br>${chunkComments}</div>`;
+                }
+
+                printHtml += `
+                <div class="flex justify-between w-full mt-4 text-xs">
+                    <div class="text-left">${getSigPrintHtml('sigBot1', meta.sigBot1)}</div>
+                    <div class="text-left">${getSigPrintHtml('sigBot2', meta.sigBot2)}</div>
+                    <div class="text-left">${getSigPrintHtml('sigBot3', meta.sigBot3)}</div>
+                </div></div>`;
+            });
+            printHtml += '</div>';
+
+            document.getElementById('rozklad-table-container').innerHTML = screenHtml + printHtml;
+        }
+
+        function getTableGrid(table) {
+            let grid = [];
+            for (let r = 0; r < table.rows.length; r++) {
+                let tr = table.rows[r];
+                if (!grid[r]) grid[r] = [];
+                let cIdx = 0;
+                for (let c = 0; c < tr.cells.length; c++) {
+                    let td = tr.cells[c];
+                    while (grid[r][cIdx]) cIdx++; 
+                    let rSpan = parseInt(td.getAttribute('rowspan')) || 1;
+                    let cSpan = parseInt(td.getAttribute('colspan')) || 1;
+                    for (let y = 0; y < rSpan; y++) {
+                        for (let x = 0; x < cSpan; x++) {
+                            if (!grid[r + y]) grid[r + y] = [];
+                            grid[r + y][cIdx + x] = td;
+                        }
+                    }
+                    cIdx += cSpan;
+                }
+            }
+            return grid;
+        }
+
+        function getCellCoords(grid, td) {
+            for (let y = 0; y < grid.length; y++) {
+                for (let x = 0; x < grid[y].length; x++) { if (grid[y][x] === td) return {x, y}; }
+            }
+            return null;
+        }
+
+        function clearSelection() {
+            selectedCells.forEach(id => {
+                let td = document.getElementById(id);
+                if(td) td.classList.remove('selected-cell');
+            });
+            selectedCells.clear();
+        }
+
+        function selectCell(td) {
+            if(!td.id) td.id = 'temp_' + Date.now() + Math.random();
+            selectedCells.add(td.id);
+            td.classList.add('selected-cell');
+            if(selectedCells.size === 1) {
+                let inp = td.querySelector('input');
+                if(inp) inp.focus();
+            }
+        }
+
+        function selectBox(sTd, eTd) {
+            clearSelection();
+            let table = sTd.closest('table');
+            if (!table || table !== eTd.closest('table')) return;
+            let grid = getTableGrid(table);
+            let p1 = getCellCoords(grid, sTd);
+            let p2 = getCellCoords(grid, eTd);
+            if (!p1 || !p2) return;
+            let minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+            let minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
+            
+            for(let y = minY; y <= maxY; y++) {
+                for(let x = minX; x <= maxX; x++) {
+                    let cell = grid[y][x];
+                    if(cell && cell.classList.contains('selectable-cell') && !selectedCells.has(cell.id)) {
+                        selectCell(cell);
+                    }
+                }
+            }
+        }
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; 
+            let td = e.target.closest('.selectable-cell');
+            if (td) {
+                isDragging = true;
+                if (!e.ctrlKey && !e.shiftKey) clearSelection();
+                startCell = td; 
+                selectCell(td);
+            } else if (!e.target.closest('#oper-group-dropdown') && !e.target.closest('#reg-subj-dropdown') && !e.target.closest('button') && !e.target.closest('#prymitky-modal') && !e.target.closest('#reg-comment-modal') && !e.target.closest('select')) {
+                clearSelection();
+            }
+        });
+
+        document.addEventListener('mouseover', (e) => {
+            if (isDragging && startCell) {
+                let td = e.target.closest('.selectable-cell');
+                if (td) selectBox(startCell, td);
+            }
+        });
+
+        document.addEventListener('mouseup', () => { isDragging = false; });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const ddOper = document.getElementById('oper-group-dropdown');
+                const ddReg = document.getElementById('reg-subj-dropdown');
+                ddOper.classList.add('hidden');
+                ddReg.classList.add('hidden');
+                
+                if (activeOperInput) {
+                    activeOperInput.blur();
+                    activeOperInput = null;
+                }
+                clearSelection();
+                return;
+            }
+
+            if (!p.HAS_LICENSE) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedCells.size > 0) {
+                    if (e.key === 'Backspace' && selectedCells.size === 1 && document.activeElement.tagName === 'INPUT') return;
+                    
+                    e.preventDefault();
+                    
+                    selectedCells.forEach(id => {
+                        let td = document.getElementById(id);
+                        if(td) {
+                            let input = td.querySelector('input');
+                            if (input && input.value !== '') {
+                                input.value = '';
+                                let cellKey = input.getAttribute('data-key');
+                                if (cellKey) window.saveRozklad(cellKey, '');
+                            }
+
+                            if (window.rozkladViewMode === 'reg') {
+                                let gId = td.dataset.groupid;
+                                let dIdx = td.dataset.didx;
+                                let lIdx = td.dataset.lidx;
+                                if (gId !== undefined && dIdx !== undefined && lIdx !== undefined && td.classList.contains('reg-subj-cell')) {
+                                    window.saveRozklad(`subj_${gId}_${dIdx}_${lIdx}`, '');
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                let activeElement = document.activeElement;
+                if (activeElement && activeElement.tagName === 'INPUT' && activeElement.closest('.selectable-cell')) {
+                    let currentTd = activeElement.closest('td');
+                    let currentTr = currentTd.closest('tr');
+                    let tbody = currentTr.closest('tbody');
+                    if (!tbody) return;
+
+                    let allRows = Array.from(tbody.querySelectorAll('tr'));
+                    let rowIndex = allRows.indexOf(currentTr);
+                    let allCellsInRow = Array.from(currentTr.querySelectorAll('.selectable-cell'));
+                    let cellIndex = allCellsInRow.indexOf(currentTd);
+
+                    let nextInput = null;
+
+                    if (e.key === 'ArrowRight' && cellIndex < allCellsInRow.length - 1) {
+                        nextInput = allCellsInRow[cellIndex + 1].querySelector('input');
+                    } else if (e.key === 'ArrowLeft' && cellIndex > 0) {
+                        nextInput = allCellsInRow[cellIndex - 1].querySelector('input');
+                    } else if (e.key === 'ArrowDown' && rowIndex < allRows.length - 1) {
+                        let nextRowCells = Array.from(allRows[rowIndex + 1].querySelectorAll('.selectable-cell'));
+                        if (nextRowCells[cellIndex]) nextInput = nextRowCells[cellIndex].querySelector('input');
+                    } else if (e.key === 'ArrowUp' && rowIndex > 0) {
+                        let prevRowCells = Array.from(allRows[rowIndex - 1].querySelectorAll('.selectable-cell'));
+                        if (prevRowCells[cellIndex]) nextInput = prevRowCells[cellIndex].querySelector('input');
+                    }
+
+                    if (nextInput) {
+                        e.preventDefault(); 
+                        clearSelection();
+                        selectCell(nextInput.closest('td'));
+                        nextInput.select();
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('paste', (e) => {
+            if (!p.HAS_LICENSE) return; 
+            let activeTd = null;
+            if (document.activeElement.tagName === 'INPUT' && document.activeElement.closest('td')) activeTd = document.activeElement.closest('td');
+            else if (selectedCells.size === 1) activeTd = document.getElementById(Array.from(selectedCells)[0]);
+            else if (selectedCells.size > 0 && startCell) {
+                let grid = getTableGrid(startCell.closest('table')); let minX = Infinity, minY = Infinity;
+                selectedCells.forEach(id => {
+                    let td = document.getElementById(id);
+                    if(td) { let coords = getCellCoords(grid, td); if(coords && (coords.y < minY || (coords.y === minY && coords.x < minX))) { minY = coords.y; minX = coords.x; activeTd = td; } }
+                });
+            }
+            if (!activeTd) return;
+            
+            let grid = getTableGrid(activeTd.closest('table')); let start = getCellCoords(grid, activeTd); if (!start) return;
+            e.preventDefault();
+            let text = (e.clipboardData || window.clipboardData).getData('text');
+            let rows = text.split(/\r?\n/); let isMultiSelect = selectedCells.size > 1;
+            
+            rows.forEach((rowText, rOffset) => {
+                if (!rowText.trim() && rOffset === rows.length - 1) return;
+                let cols = rowText.split('\t'); let targetY = start.y + rOffset;
+                if (targetY >= grid.length) return;
+                cols.forEach((val, cOffset) => {
+                    let targetX = start.x + cOffset; if (targetX >= grid[targetY].length) return;
+                    let targetCell = grid[targetY][targetX];
+                    if (isMultiSelect && (!targetCell || !selectedCells.has(targetCell.id))) return;
+                    
+                    if (targetCell && targetCell.querySelector('input')) {
+                        let input = targetCell.querySelector('input'); if (input.disabled) return;
+                        let cellKey = input.getAttribute('data-key');
+                        let cleanVal = val.trim();
+                        input.value = cleanVal;
+                        if (cellKey) window.saveRozklad(cellKey, cleanVal);
+                    }
+                });
+            });
+        });
+
+        window.exportToExcelJS = async function() {
+            const daysConfig = getDaysConfig();
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet(window.rozkladViewMode === 'oper' ? 'Оперативний' : 'Звичайний');
+            const tableElement = document.getElementById('table-export');
+            
+            tableElement.querySelectorAll('input').forEach(inp => { inp.setAttribute('value', inp.value); });
+            const tableClone = tableElement.cloneNode(true);
+            
+            tableClone.querySelectorAll('.print-hide').forEach(e => e.remove());
+            tableClone.querySelectorAll('.print-block').forEach(e => e.classList.remove('hidden'));
+
+            const rows = tableClone.querySelectorAll('tr');
+            
+            let offsetR = window.rozkladViewMode === 'oper' ? 2 : 0;
+            let totalCols = 0;
+            
+            if (window.rozkladViewMode === 'oper') {
+                if(rows.length > 0) { rows[0].querySelectorAll('th, td').forEach(c => totalCols += parseInt(c.getAttribute('colspan')) || 1); }
+                ws.mergeCells(1, 1, 1, totalCols);
+                
+                let headerDate = getActiveRozkladDateString();
+                if (headerDate === 'Розклад уроків') {
+                    let activeRozklad = document.querySelector(`.rozklad-sub-tab[data-ridx="${window.currentRozkladIndex}"]`)?.innerText || 'Розклад';
+                    headerDate = `Розклад уроків (${activeRozklad})`;
+                }
+                
+                let cell1 = ws.getCell(1, 1);
+                cell1.value = `${headerDate}\n${p.INSTITUTION_NAME} на ${p.CURRENT_YEAR} н.р.`;
+                cell1.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                cell1.font = { name: 'Times New Roman', size: 12, bold: true, italic: true };
+            }
+
+            let matrix = [];
+            let visibleRows = Array.from(rows).filter(r => r.style.display !== 'none');
+            
+            visibleRows.forEach((tr, rIdx) => {
+                let cIdx = 0;
+                const cells = tr.querySelectorAll('th, td');
+                
+                cells.forEach(cell => {
+                    while(matrix[rIdx] && matrix[rIdx][cIdx]) { cIdx++; }
+                    let rSpan = parseInt(cell.getAttribute('rowspan')) || 1; let cSpan = parseInt(cell.getAttribute('colspan')) || 1;
+                    for(let r = 0; r < rSpan; r++) { for(let c = 0; c < cSpan; c++) { if(!matrix[rIdx + r]) matrix[rIdx + r] = []; matrix[rIdx + r][cIdx + c] = true; } }
+                    
+                    const targetRow = offsetR + rIdx + 1; const targetCol = cIdx + 1;
+                    const excelCell = ws.getCell(targetRow, targetCol);
+                    if (rSpan > 1 || cSpan > 1) ws.mergeCells(targetRow, targetCol, targetRow + rSpan - 1, targetCol + cSpan - 1);
+                    
+                    let val = '';
+                    const input = cell.querySelector('input');
+                    if (input) val = input.getAttribute('value') || input.value;
+                    else {
+                        let clone = cell.cloneNode(true);
+                        clone.querySelectorAll('span.text-slate-300').forEach(e => e.remove());
+                        val = clone.innerText.trim();
+                    }
+                    
+                    if (tr.closest('tfoot') || tr.classList.contains('constructor-row')) {
+                        excelCell.value = val;
+                        let aHor = tr.classList.contains('constructor-row') ? (cIdx === 0 ? 'left' : (cIdx + cSpan >= matrix[rIdx].length ? 'right' : 'center')) : 'left';
+                        excelCell.alignment = { vertical: 'top', horizontal: aHor, wrapText: true };
+                        excelCell.font = { name: 'Arial', size: 9 };
+                        if (tr.classList.contains('constructor-row')) excelCell.border = undefined;
+                        return;
+                    }
+
+                    excelCell.value = val;
+                    
+                    let argb = 'FFFFFFFF'; const classStr = (cell.className + ' ' + tr.className + ' ' + (input ? input.className : ''));
+                    if(classStr.includes('bg-slate-200')) argb = 'FFE2E8F0';
+                    else if(classStr.includes('bg-slate-100')) argb = 'FFF1F5F9';
+                    else if(classStr.includes('bg-slate-50')) argb = 'FFF8FAFC';
+                    else if(classStr.includes('bg-indigo-100')) argb = 'FFE0E7FF';
+                    else if(classStr.includes('bg-yellow-100') || classStr.includes('bg-yellow-50')) argb = 'FFFEFCE8';
+                    else if(classStr.includes('!bg-pink-100') || classStr.includes('!bg-red-200')) argb = 'FFFCE7F3';
+                    else if(classStr.includes('!bg-[#dcfce7]')) argb = 'FFDCFCE7';
+                    
+                    if(argb !== 'FFFFFFFF') excelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb } };
+                    
+                    let bTop = 'thin'; let bLeft = 'thin'; let bBottom = 'thin'; let bRight = 'thin';
+                    if (classStr.includes('!border-r-2') || classStr.includes('border-r-[1.5px] border-black')) bRight = 'medium';
+                    if (classStr.includes('border-b-2 border-slate-800') || classStr.includes('border-b-[1.5px] border-black')) bBottom = 'medium';
+                    
+                    excelCell.border = { top: {style:bTop}, left: {style:bLeft}, bottom: {style:bBottom}, right: {style:bRight} };
+                    
+                    let isBold = cell.tagName === 'TH' || classStr.includes('font-bold'); let fontColor = 'FF000000';
+                    if(classStr.includes('text-indigo-900') || classStr.includes('text-indigo-700')) fontColor = 'FF312E81';
+                    if(classStr.includes('text-green-800')) fontColor = 'FF166534';
+                    if(classStr.includes('text-pink-800') || classStr.includes('text-red-900')) fontColor = 'FF9D174D';
+                    if(classStr.includes('text-slate-600')) fontColor = 'FF475569';
+                    
+                    excelCell.font = { bold: isBold, color: { argb: fontColor }, size: 9, name: 'Arial', italic: classStr.includes('italic') };
+                    let align = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                    if(classStr.includes('text-left') || classStr.includes('text-right')) align.horizontal = classStr.includes('text-left') ? 'left' : 'right';
+                    if(cell.style.writingMode === 'vertical-rl' || classStr.includes('writing-vertical')) align.textRotation = 90;
+                    excelCell.alignment = align;
+                });
+            });
+            
+            if (window.rozkladViewMode === 'oper') {
+                ws.columns.forEach((col, i) => { if(i===0) col.width=4; else if(i===1) col.width=25; else col.width=6; });
+            } else {
+                ws.columns.forEach((col, i) => { if(i===0||i===1) col.width=4; else if(i===2) col.width=10; else if((i-3)%3===0) col.width=14; else if((i-3)%3===1) col.width=5; else col.width=12; });
+            }
+            
+            const buffer = await wb.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), `Розклад_${p.CURRENT_YEAR}.xlsx`);
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if(p.groupsData && p.groupsData.length > 0) window.onDataUpdated();
+        });
+
+    </script>
+</body>
+</html>

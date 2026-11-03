@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система розподілу годин - Головна</title>
+    
+    <!-- PWA та іконки -->
+    <link rel="icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0e8fd 0%, #f4f6fc 100%);
+            background-image: radial-gradient(circle at 15% 50%, rgba(200, 210, 255, 0.4) 0%, transparent 50%),
+                              radial-gradient(circle at 85% 30%, rgba(220, 230, 255, 0.5) 0%, transparent 50%);
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.65); backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 40px -10px rgba(31, 38, 135, 0.1);
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        
+        .tab-btn.active { background-color: #eef2ff; color: #4f46e5; font-weight: 700; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+        .settings-tab.active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
+        
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col font-sans text-slate-700 bg-gradient-to-br from-indigo-50 to-blue-100">
+
+    <!-- AUTH SCREEN -->
+    <div id="auth-screen" class="flex-1 flex items-center justify-center bg-white/40 backdrop-blur-sm z-50 relative">
+        <div class="bg-white p-10 rounded-2xl shadow-2xl border border-slate-200 text-center max-w-sm w-full">
+            <div class="flex justify-center items-center gap-3 mb-2">
+                <img src="logo.png" alt="Logo" class="w-12 h-12 object-contain" onerror="this.style.display='none'">
+                <div class="font-black text-4xl text-indigo-600 tracking-tighter">EduMonitor<span class="text-slate-400 text-lg font-medium tracking-normal ml-1">v3.0.16</span></div>
+            </div>
+            <p class="text-sm text-slate-500 mb-8 font-medium">Система розподілу годин та тарифікації</p>
+            <button id="btn-google-login" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-3">
+                <i class="fa-brands fa-google text-lg"></i> Увійти через Google
+            </button>
+        </div>
+    </div>
+
+    <!-- PENDING SCREEN -->
+    <div id="pending-screen" class="hidden flex-1 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm z-50 relative overflow-y-auto py-8">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl border border-slate-200 text-center max-w-md w-full">
+            <i class="fa-solid fa-hourglass-half text-5xl text-orange-400 mb-4 animate-pulse"></i>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Очікування авторизації</h2>
+            <p class="text-slate-600 mb-6 text-sm">Ваш обліковий запис успішно створено, проте ви ще не призначені до жодного навчального закладу. Зверніться до адміністратора або суперадміністратора для отримання прав доступу.</p>
+            
+            <button id="btn-logout-pending" class="text-indigo-600 hover:text-indigo-800 font-bold text-sm underline mb-6">Вийти з акаунту</button>
+
+            <!-- ПРОБНА ЛІЦЕНЗІЯ БЛОК -->
+            <div class="mt-2 border-t border-slate-200 pt-6">
+                <div class="bg-teal-50 border border-teal-200 rounded-xl p-4 text-left">
+                    <h3 class="font-bold text-teal-800 text-sm mb-1"><i class="fa-solid fa-rocket mr-1"></i> Бажаєте протестувати систему?</h3>
+                    <p class="text-xs text-teal-700 mb-3">Ви можете створити власний заклад з безкоштовною пробною ліцензією на 30 днів. Експорт та друк будуть вимкнені.</p>
+                    <button id="btn-create-trial" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-all shadow-sm text-sm">
+                        Створити свій заклад (Пробний)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUPERADMIN SCREEN -->
+    <div id="sa-screen" class="hidden flex-1 flex flex-col h-full overflow-hidden p-6 z-50 relative bg-slate-50">
+        <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 shrink-0">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-xl shadow-inner"><i class="fa-solid fa-crown"></i></div>
+                <div><h1 class="text-xl font-bold text-slate-800">Панель Суперадміністратора</h1><p class="text-xs text-slate-500 font-medium">Управління закладами та ліцензіями</p></div>
+            </div>
+            <!-- ДОДАНО КНОПКУ РЕКВІЗИТИ -->
+            <div class="flex gap-2">
+                <button onclick="window.openSaBanksModal()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors border border-indigo-300 shadow-sm"><i class="fa-solid fa-building-columns mr-2"></i>Реквізити</button>
+                <button id="btn-logout-sa" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors border border-slate-300 shadow-sm"><i class="fa-solid fa-right-from-bracket mr-2"></i>Вийти</button>
+            </div>
+        </div>
+        
+        <div class="flex-1 flex gap-6 overflow-hidden">
+            <!-- Заклади -->
+            <div class="w-1/2 flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
+                    <h2 class="font-bold text-slate-700"><i class="fa-solid fa-school text-indigo-500 mr-2"></i>Навчальні заклади</h2>
+                    <span class="text-xs text-slate-500">Натисніть на заклад для керування</span>
+                </div>
+                <div class="p-4 border-b border-slate-100 bg-slate-50 shrink-0">
+                    <div class="flex gap-2">
+                        <input type="text" id="sa-inst-name" placeholder="Назва нового закладу..." class="flex-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500">
+                        <button id="btn-sa-add-inst" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">Створити</button>
+                    </div>
+                </div>
+                
+                <!-- Вкладки закладів (Повноцінні / Пробні) -->
+                <div class="flex px-4 pt-2 border-b border-slate-200 bg-slate-50 gap-4 shrink-0">
+                    <button class="sa-tab-btn active border-b-2 border-indigo-600 text-indigo-600 font-bold py-2 text-sm transition-colors" data-target="sa-inst-list-full">Повноцінні</button>
+                    <button class="sa-tab-btn text-slate-500 hover:text-slate-700 font-medium py-2 text-sm transition-colors" data-target="sa-inst-list-trial">Пробні (Trial)</button>
+                </div>
+
+                <div class="flex-1 overflow-auto p-4 relative">
+                    <div id="sa-inst-list-full" class="sa-list-container space-y-3 block"></div>
+                    <div id="sa-inst-list-trial" class="sa-list-container space-y-3 hidden"></div>
+                </div>
+            </div>
+
+            <!-- Користувачі -->
+            <div class="w-1/2 flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+                <div class="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
+                    <h2 class="font-bold text-slate-700 flex items-center" id="sa-users-title"><i class="fa-solid fa-users-gear text-teal-500 mr-2"></i>Користувачі системи</h2>
+                    <button id="sa-btn-back-users" class="hidden bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold transition-colors shadow-sm"><i class="fa-solid fa-arrow-left mr-1"></i>До списку всіх</button>
+                </div>
+                
+                <!-- Всі користувачі -->
+                <div id="sa-users-all-view" class="flex-1 overflow-auto p-4 block">
+                    <div id="sa-users-list" class="space-y-3"></div>
+                </div>
+
+                <!-- Управління користувачами конкретного закладу -->
+                <div id="sa-users-inst-view" class="flex-1 flex flex-col overflow-hidden hidden">
+                    <div class="p-4 bg-teal-50/50 border-b border-slate-200 shrink-0">
+                        <label class="block text-xs font-bold text-teal-800 uppercase mb-2">Знайти та додати користувача</label>
+                        <div class="flex gap-2 items-start relative">
+                            <div class="flex-1 relative">
+                                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                                <input type="text" id="sa-search-pending" placeholder="Пошук (email або ім'я)..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-teal-500 bg-white" autocomplete="off">
+                                <div id="sa-search-dropdown" class="absolute top-full left-0 right-0 bg-white border border-slate-300 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto hidden z-50 divide-y divide-slate-100"></div>
+                            </div>
+                            <select id="sa-new-user-role" class="py-2 px-3 border border-slate-300 rounded-lg text-sm outline-none focus:border-teal-500 bg-white w-32 shrink-0">
+                                <option value="admin">Адмін</option>
+                                <option value="coauthor">Співавтор</option>
+                            </select>
+                            <button id="sa-btn-add-inst-user" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Додати</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto p-4 bg-slate-50/50">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase mb-3">Призначені до закладу</h3>
+                        <div id="sa-inst-users-assigned" class="space-y-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCREEN -->
+    <div id="app-screen" class="hidden flex-1 flex-col h-full p-4 gap-4 overflow-hidden relative z-40">
+        
+        <!-- ПОВІДОМЛЕННЯ ПРО ЛІЦЕНЗІЮ -->
+        <div id="license-warning" class="hidden bg-red-500 text-white p-2 rounded-xl text-center text-sm font-bold shadow-md animate-pulse shrink-0 border border-red-700 flex justify-center items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation"></i> <span id="license-warning-text">Увага! Термін дії ліцензії для вашого закладу вичерпано. Система переведена в режим "Тільки читання".</span>
+        </div>
+
+        <!-- ВЕРХНЄ МЕНЮ -->
+        <header class="glass rounded-2xl flex items-center justify-between px-4 py-3 shrink-0 shadow-sm print-hide">
+            <div class="flex items-center gap-4">
+                <div class="font-black text-2xl text-indigo-600 tracking-tighter mr-2 flex items-center gap-2">
+                    <img src="logo.png" alt="Logo" class="w-6 h-6 object-contain" onerror="this.style.display='none'">
+                    <span>EduMonitor<span class="text-slate-400 text-sm font-medium tracking-normal ml-1">v3.0.16</span></span>
+                </div>
+                
+                <div class="flex flex-col border-l border-slate-300 pl-4 mr-2">
+                    <span id="app-inst-name" class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Заклад</span>
+                    <span id="app-user-info" class="text-xs font-semibold text-indigo-700">Користувач</span>
+                </div>
+
+                <button id="current-year-btn" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-bold px-4 py-1.5 rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2 border border-indigo-200">
+                    <i class="fa-regular fa-calendar"></i> <span id="current-year-display">Оберіть рік</span>
+                </button>
+
+                <nav class="flex gap-1 bg-white/40 p-1 rounded-xl border border-white/60 ml-2" id="main-nav">
+                    <a href="vybirka.html" target="content_frame" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-white transition-all">Вибірка годин</a>
+                    <a href="tarif.html" target="content_frame" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-white transition-all">Тарифікація</a>
+                    <a href="ekran.html" target="content_frame" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-white transition-all">Екран</a>
+                    <div class="w-px bg-slate-300 mx-1"></div>
+                    <a href="vychytka.html" target="content_frame" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-white transition-all">Вичитка годин</a>
+                    <a href="rozklad.html" target="content_frame" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-white transition-all">Розклад</a>
+                    <a href="zamina.html" target="content_frame" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-white transition-all">Заміни</a>
+                </nav>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-manual-backup" onclick="window.performBackup(true)" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-all bg-white/50 border border-white shadow-sm" title="Завантажити резервну копію БД на ПК"><i class="fa-solid fa-download text-xl px-2"></i></button>
+                <div class="w-px bg-slate-300 mx-1 h-6" id="div-before-settings"></div>
+                <button id="open-settings-btn" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-all bg-white/50 border border-white shadow-sm" title="Налаштування"><i class="fa-solid fa-gear text-xl px-2"></i></button>
+                <button id="btn-logout-app" class="p-2 text-slate-500 hover:text-red-600 hover:bg-white rounded-lg transition-all bg-white/50 border border-white shadow-sm" title="Вийти"><i class="fa-solid fa-right-from-bracket text-xl px-2"></i></button>
+            </div>
+        </header>
+
+        <!-- ГОЛОВНЕ ПОЛЕ ІЗ ФРЕЙМОМ -->
+        <main class="glass rounded-2xl flex-1 flex flex-col relative overflow-hidden p-4">
+            <div id="mode-empty" class="flex-1 flex items-center justify-center flex-col text-slate-400 absolute inset-0 z-10 bg-white/80 backdrop-blur-sm hidden">
+                <i class="fa-regular fa-calendar-xmark text-6xl mb-4 opacity-50"></i>
+                <p class="text-lg font-medium">Будь ласка, оберіть навчальний рік для початку роботи</p>
+                <button onclick="document.getElementById('current-year-btn').click()" class="mt-4 px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md">Відкрити менеджер років</button>
+            </div>
+
+            <!-- IFRAME ДЛЯ ТАБЛИЦЬ -->
+            <iframe id="content_frame" name="content_frame" src="about:blank" class="w-full h-full border-none rounded-xl"></iframe>
+        </main>
+    </div>
+
+    <!-- МОДАЛЬНЕ ВІКНО ОНОВЛЕННЯ ПРОГРАМИ -->
+    <div id="update-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[500] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center border border-indigo-200">
+            <i class="fa-solid fa-cloud-arrow-down text-5xl text-indigo-500 mb-4 animate-bounce"></i>
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Доступне оновлення</h3>
+            <p class="text-sm text-slate-600 mb-6">Вийшла нова версія системи. Будь ласка, оновіть сторінку для отримання нових функцій та виправлення помилок.</p>
+            <button id="btn-update-app" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-md">Оновити зараз</button>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНІ ВІКНА РОКІВ / НАЛАШТУВАНЬ ТА КАСТОМНІ АЛЕРТИ -->
+    <div id="year-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200 max-h-[90vh] overflow-y-auto relative">
+            <button id="close-year-modal-btn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hidden transition-colors"><i class="fa-solid fa-xmark text-xl px-2 py-1"></i></button>
+            <div class="text-center mb-6 mt-2">
+                <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl"><i class="fa-solid fa-calendar-check"></i></div>
+                <h3 class="text-xl font-bold text-slate-800">Навчальний рік</h3>
+                <p class="text-sm text-slate-500 mt-1">Оберіть рік для роботи або створіть новий.</p>
+            </div>
+            
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Наявні роки</label>
+                <div class="flex gap-2">
+                    <select id="year-select" class="flex-1 p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 bg-slate-50"></select>
+                    <button id="confirm-year-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg font-bold transition-colors shadow-sm">Відкрити</button>
+                </div>
+            </div>
+            
+            <div id="create-year-section" class="mb-2 pt-5 border-t border-slate-200 transition-opacity">
+                <label class="block text-xs font-bold text-slate-800 uppercase mb-2">Створити новий рік</label>
+                <input type="text" id="new-year-input" placeholder="Напр. 2026-2027" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 mb-3">
+                
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="migrate-check" class="w-4 h-4 text-indigo-600 accent-indigo-600 cursor-pointer">
+                        <span class="text-sm font-bold text-slate-700">Перенести дані з попереднього року</span>
+                    </label>
+                    
+                    <div id="migration-options" class="hidden flex-col gap-2 mt-3 pl-6 border-l-2 border-indigo-200 ml-2">
+                        <select id="migrate-source-year" class="w-full p-2 border border-slate-300 rounded text-sm mb-1 outline-none bg-white"></select>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-indigo-600"><input type="checkbox" id="mig-settings" checked class="accent-indigo-600"> Загальні налаштування (ПІБ)</label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-indigo-600"><input type="checkbox" id="mig-teachers" checked class="accent-indigo-600"> Викладачі (Список)</label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-indigo-600"><input type="checkbox" id="mig-groups" checked class="accent-indigo-600"> Групи</label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-indigo-600"><input type="checkbox" id="mig-subjects" checked class="accent-indigo-600"> Предмети (Загальноосвітні та Спец)</label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-indigo-600"><input type="checkbox" id="mig-workload" class="accent-indigo-600"> Розподіл годин (Заповнені таблиці)</label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer hover:text-indigo-600"><input type="checkbox" id="mig-ekran" class="accent-indigo-600"> Екран (шаблони розкладів)</label>
+                    </div>
+                </div>
+                <button id="add-year-btn" class="w-full bg-slate-800 hover:bg-slate-900 text-white py-3 rounded-lg font-bold transition-colors shadow-md">Створити та відкрити</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- НАЛАШТУВАННЯ -->
+    <div id="settings-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+        <div class="bg-white/95 backdrop-blur-xl w-full h-full flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-slate-200 bg-slate-100 shadow-sm shrink-0">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-sliders text-indigo-600 text-xl"></i><h3 class="text-xl font-bold text-slate-800">Налаштування</h3>
+                </div>
+                <button id="close-settings-btn" class="bg-slate-200 hover:bg-red-100 hover:text-red-600 text-slate-600 px-4 py-1.5 rounded-lg font-bold transition-colors">Закрити ✕</button>
+            </div>
+            <div class="flex px-6 border-b border-slate-200 bg-slate-50 gap-8 shrink-0 overflow-x-auto" id="settings-tabs-container">
+                <button class="settings-tab active pb-3 pt-4 text-sm font-medium shrink-0" data-tab="set-general">Загальне</button>
+                <button class="settings-tab pb-3 pt-4 text-sm font-medium shrink-0" data-tab="set-teachers">Викладачі</button>
+                <button class="settings-tab pb-3 pt-4 text-sm font-medium shrink-0" data-tab="set-groups">Групи</button>
+                <button class="settings-tab pb-3 pt-4 text-sm font-medium shrink-0" data-tab="set-subjects">Предмети</button>
+                <button class="settings-tab pb-3 pt-4 text-sm font-medium shrink-0" id="tab-license" data-tab="set-license"><i class="fa-solid fa-key mr-1 text-slate-400"></i>Ліцензія</button>
+                <button class="settings-tab pb-3 pt-4 text-sm font-medium shrink-0 hidden text-purple-700" id="tab-coauthors" data-tab="set-coauthors"><i class="fa-solid fa-user-shield mr-1"></i>Співавтори</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-white relative scroll-smooth" id="settings-scroll-area">
+                
+               <!-- ЗАГАЛЬНЕ -->
+                <div id="set-general" class="settings-content block w-full max-w-3xl mx-auto">
+                    <div class="bg-slate-50 p-6 rounded-xl border border-slate-200 shadow-sm mb-6">
+                        <div class="flex items-center justify-between mb-4 border-b border-slate-200 pb-2">
+                            <h4 class="font-bold text-slate-800"><i class="fa-solid fa-signature text-indigo-500 mr-2"></i>Підписи для друку та експорту</h4>
+                            <span id="set-year-label" class="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded"></span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-6 mb-4">
+                            <div><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Директор (Повне ПІБ)</label><input type="text" id="set-dir-full" placeholder="напр. Іванілов Олег В'ячеславович" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Директор (Скорочено)</label><input type="text" id="set-dir-short" placeholder="напр. О.В. Іванілов" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-6 mb-4 mt-6">
+                            <div><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Голова профспілки (Повне ПІБ)</label><input type="text" id="set-prof-full" placeholder="напр. Живинюк Віталій Леонідович" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Голова профспілки (Скорочено)</label><input type="text" id="set-prof-short" placeholder="напр. В.Л. Живинюк" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+
+                        <h4 class="font-bold text-slate-700 mt-8 mb-4 border-b border-slate-200 pb-2"><i class="fa-solid fa-users-gear text-indigo-500 mr-2"></i>Заступники та методист</h4>
+                        
+                        <div class="grid grid-cols-3 gap-4 mb-3">
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Посада (Заст. 1)</label><input type="text" id="set-dep1-pos" placeholder="напр. Заст. з НВР" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Повне ПІБ</label><input type="text" id="set-dep1-full" placeholder="ПІБ" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Скорочено</label><input type="text" id="set-dep1-short" placeholder="Ініціали Прізвище" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 mb-3">
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Посада (Заст. 2)</label><input type="text" id="set-dep2-pos" placeholder="напр. Заст. з НВихР" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Повне ПІБ</label><input type="text" id="set-dep2-full" placeholder="ПІБ" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Скорочено</label><input type="text" id="set-dep2-short" placeholder="Ініціали Прізвище" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 mb-3">
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Посада (Заст. 3)</label><input type="text" id="set-dep3-pos" placeholder="напр. Заст. з НВР" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Повне ПІБ</label><input type="text" id="set-dep3-full" placeholder="ПІБ" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Скорочено</label><input type="text" id="set-dep3-short" placeholder="Ініціали Прізвище" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 mb-3">
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Посада (Методист)</label><input type="text" id="set-meth-pos" placeholder="напр. Методист" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Повне ПІБ</label><input type="text" id="set-meth-full" placeholder="ПІБ" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Скорочено</label><input type="text" id="set-meth-short" placeholder="Ініціали Прізвище" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Посада (Голова учпрофкому)</label><input type="text" id="set-studprof-pos" placeholder="напр. Голова учпрофкому" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Повне ПІБ</label><input type="text" id="set-studprof-full" placeholder="ПІБ" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                            <div><label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Скорочено</label><input type="text" id="set-studprof-short" placeholder="Ініціали Прізвище" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+                        </div>
+
+						<h4 class="font-bold text-slate-700 mt-8 mb-4 border-b border-slate-200 pb-2"><i class="fa-solid fa-calendar-days text-indigo-500 mr-2"></i>Параметри семестрів та робочого тижня</h4>
+						<div class="grid grid-cols-2 gap-4 mb-4">
+							<div><label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Початок 1 семестру</label><input type="date" id="set-sem1-start" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+							<div><label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Кінець 1 семестру</label><input type="date" id="set-sem1-end" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+							<div><label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Початок 2 семестру</label><input type="date" id="set-sem2-start" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+							<div><label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Кінець 2 семестру</label><input type="date" id="set-sem2-end" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none"></div>
+						</div>
+                        
+                        <div class="grid grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Кількість робочих днів</label>
+                                <select id="set-work-days" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none">
+                                    <option value="5">5 днів (Пн-Пт)</option>
+                                    <option value="6">6 днів (Пн-Сб)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Уроків (серед тижня)</label>
+                                <input type="number" min="1" max="12" id="set-lessons-regular" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none" placeholder="Напр. 8">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Уроків (в останній день)</label>
+                                <input type="number" min="1" max="12" id="set-lessons-last" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:border-indigo-500 outline-none" placeholder="Напр. 6">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end mt-6 pt-4 border-t border-slate-200">
+                            <button id="btn-save-general" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 px-8 rounded-lg shadow-sm transition-colors">Зберегти налаштування</button>
+                        </div>
+                    </div>
+                    
+                    <!-- БЛОК ІМПОРТУ/ЕКСПОРТУ БД -->
+                    <h4 class="font-bold text-slate-700 mt-8 mb-4 border-b border-slate-200 pb-2"><i class="fa-solid fa-database text-indigo-500 mr-2"></i>Резервне копіювання та відновлення</h4>
+                    <div class="flex gap-4">
+                        <button id="btn-settings-backup" onclick="window.performBackup(true)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors border border-slate-300 shadow-sm flex items-center gap-2"><i class="fa-solid fa-download"></i> Експортувати БД</button>
+                        <button id="btn-settings-restore" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors border border-indigo-200 shadow-sm flex items-center gap-2"><i class="fa-solid fa-upload"></i> Імпортувати БД з ПК</button>
+                        <input type="file" id="import-db-file" accept=".json" class="hidden">
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">Функції роботи з БД недоступні для пробних закладів.</p>
+
+                </div>
+
+                <!-- ВИКЛАДАЧІ -->
+                <div id="set-teachers" class="settings-content hidden w-full">
+                    <form id="form-teacher" class="flex gap-3 mb-6 items-end bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10">
+                        <div class="flex-1"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">ПІБ Викладача</label><input type="text" id="t-name" required class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none bg-white"></div>
+                        <div class="w-1/4"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Посада</label><select id="t-position" required class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none bg-white"><option value="Викладач">Викладач</option><option value="Майстер в/н">Майстер в/н</option><option value="Керівник гуртка">Керівник гуртка</option></select></div>
+                        <div class="flex gap-2"><button type="button" id="btn-cancel-teacher" class="hidden bg-slate-200 text-slate-700 text-sm font-medium py-2 px-4 rounded-lg">Скасувати</button><button type="submit" id="btn-submit-teacher" class="bg-indigo-600 text-white text-sm font-medium py-2 px-8 rounded-lg shadow-sm">Додати</button></div>
+                    </form>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <table class="w-full text-left text-sm"><thead class="bg-slate-100 text-slate-600 text-xs uppercase"><tr><th class="p-3 w-12 text-center">№</th><th class="p-3">ПІБ</th><th class="p-3">Посада</th><th class="p-3 text-right w-24">Дія</th></tr></thead><tbody id="teachers-list" class="divide-y divide-slate-200 bg-white"></tbody></table>
+                    </div>
+                </div>
+
+                <!-- ГРУПИ -->
+                <div id="set-groups" class="settings-content hidden w-full">
+                    <form id="form-group" class="flex gap-3 mb-6 items-end bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10">
+                        <div class="w-20"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">№ Групи</label><input type="text" id="g-num" required class="w-full p-2 border border-slate-300 rounded-lg text-sm" placeholder="напр. 12"></div>
+                        <div class="w-1/4"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Спеціальність (Назва)</label><input type="text" id="g-name" required class="w-full p-2 border border-slate-300 rounded-lg text-sm" placeholder="напр. Електромонтери"></div>
+                        <div class="w-1/4"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Курс</label><select id="g-course" class="w-full p-2 border border-slate-300 rounded-lg text-sm"><option value="1">1 курс</option><option value="2">2 курс</option><option value="3">3 курс</option><option value="4">4 курс</option></select></div>
+                        <div class="flex-1"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">База освіти</label><select id="g-edu" class="w-full p-2 border border-slate-300 rounded-lg text-sm"><option value="Базова (9 кл)">Базова (після 9 кл)</option><option value="Повна (11 кл)">Повна (після 11 кл)</option></select></div>
+                        <div class="flex gap-2"><button type="button" id="btn-cancel-group" class="hidden bg-slate-200 text-slate-700 text-sm font-medium py-2 px-4 rounded-lg">Скасувати</button><button type="submit" id="btn-submit-group" class="bg-indigo-600 text-white text-sm font-medium py-2 px-8 rounded-lg shadow-sm">Додати</button></div>
+                    </form>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <table class="w-full text-left text-sm"><thead class="bg-slate-100 text-slate-600 text-xs uppercase"><tr><th class="p-3 w-12 text-center">№</th><th class="p-3 w-20">№ Групи</th><th class="p-3">Спеціальність</th><th class="p-3">Курс</th><th class="p-3">Освіта</th><th class="p-3 text-right w-24">Дія</th></tr></thead><tbody id="groups-list" class="divide-y divide-slate-200 bg-white"></tbody></table>
+                    </div>
+                </div>
+
+                <!-- ПРЕДМЕТИ -->
+                <div id="set-subjects" class="settings-content hidden w-full">
+                    <div class="flex gap-4 mb-4 border-b border-slate-200">
+                        <button class="subj-sub-tab active text-indigo-600 border-b-2 border-indigo-600 pb-2 font-semibold text-sm" data-target="subj-general">Загальноосвітні</button>
+                        <button class="subj-sub-tab text-slate-500 hover:text-slate-700 pb-2 font-semibold text-sm" data-target="subj-special">Спецпредмети</button>
+                    </div>
+                    
+                    <div id="subj-general" class="subj-content block">
+                        <form id="form-gen-subj" class="flex flex-col gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm sticky top-0 z-10">
+                            <div class="flex gap-3 items-end">
+                                <div class="flex-1"><label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Назва предмету</label><input type="text" id="gs-name" required class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none"></div>
+                                <button type="submit" class="bg-indigo-600 text-white text-sm font-medium py-2 px-8 rounded-lg shadow-sm h-[38px]">Додати</button>
+                            </div>
+                            <div class="flex gap-6 mt-1 border-t border-slate-200 pt-3">
+                                <div class="flex items-center gap-2"><input type="checkbox" id="gs-split" class="w-4 h-4 text-indigo-600 cursor-pointer"><label for="gs-split" class="text-sm font-semibold text-slate-700 cursor-pointer">Є поділ</label></div>
+                                <div class="flex items-center gap-2"><input type="checkbox" id="gs-exclude" class="w-4 h-4 text-orange-500 cursor-pointer"><label for="gs-exclude" class="text-sm font-semibold text-orange-700 cursor-pointer">Поза підсумками</label></div>
+                            </div>
+                        </form>
+                        <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                            <table class="w-full text-left text-sm"><thead class="bg-slate-100 text-slate-600 text-xs uppercase"><tr><th class="p-3 w-12 text-center">№</th><th class="p-3">Предмет</th><th class="p-3 w-28 text-center">Поділ</th><th class="p-3 w-28 text-center">Поза підс.</th><th class="p-3 text-right w-32">Дії</th></tr></thead><tbody id="gen-subj-list" class="divide-y divide-slate-200 bg-white"></tbody></table>
+                        </div>
+                    </div>
+
+                    <div id="subj-special" class="subj-content hidden">
+                        <form id="form-spec-cat" class="flex gap-3 mb-6 items-end bg-teal-50 p-4 rounded-xl border border-teal-200 shadow-sm sticky top-0 z-10">
+							<div class="flex-1">
+								<label class="block text-xs font-semibold text-teal-700 uppercase mb-1">Створити категорію (Професію)</label>
+								<div class="flex gap-2">
+									<input type="color" id="scat-color" value="#bbf7d0" class="w-10 h-[38px] p-0 border border-teal-300 rounded cursor-pointer shrink-0" title="Колір категорії">
+									<input type="text" id="scat-name" required class="w-full p-2 border border-teal-300 rounded-lg text-sm" placeholder="Назва категорії...">
+								</div>
+							</div>
+							<button type="submit" class="bg-teal-600 text-white text-sm font-medium py-2 px-8 rounded-lg shadow-sm h-[38px]">Створити</button>
+						</form>
+                        <div id="spec-categories-container" class="space-y-6"></div>
+                    </div>
+                </div>
+
+                <!-- ЛІЦЕНЗІЯ -->
+                <div id="set-license" class="settings-content hidden w-full max-w-3xl mx-auto">
+                    <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-sm text-center">
+                        <i class="fa-solid fa-file-contract text-5xl text-indigo-500 mb-4"></i>
+                        <h3 class="text-2xl font-bold text-slate-800 mb-2" id="lic-inst-name">Назва закладу</h3>
+                        <div class="inline-block px-4 py-1.5 rounded-full font-bold text-sm mb-6" id="lic-status-badge"></div>
+                        
+                        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto text-left">
+                            <div class="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                                <div class="text-xs font-semibold text-slate-500 uppercase mb-1">Тип ліцензії</div>
+                                <div class="font-bold text-slate-800" id="lic-type">Повноцінна</div>
+                            </div>
+                            <div class="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                                <div class="text-xs font-semibold text-slate-500 uppercase mb-1">Дійсна до</div>
+                                <div class="font-bold text-slate-800" id="lic-expiry-date">--.--.----</div>
+                            </div>
+                        </div>
+
+                        <!-- ДОДАНИЙ БЛОК ОПЛАТИ -->
+                        <div id="payment-section" class="mt-8 border-t border-slate-200 pt-6 text-left max-w-md mx-auto">
+                            <h4 class="font-bold text-slate-800 mb-4 flex items-center justify-between">
+                                <span><i class="fa-solid fa-credit-card text-indigo-500 mr-2"></i>Оплатити ліцензію</span>
+                                <span class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-sm border border-indigo-100">Вартість: <span id="lic-annual-cost-display" class="font-black">0</span> грн/рік</span>
+                            </h4>
+                            <div id="lic-banks-container" class="grid grid-cols-2 gap-2"></div>
+                            <div id="receipt-pending-msg" class="hidden mt-4 bg-orange-50 text-orange-700 p-3 rounded-lg border border-orange-200 text-sm font-semibold text-center">
+                                <i class="fa-solid fa-clock-rotate-left mr-2"></i>Ваша квитанція перевіряється адміністратором.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- СПІВАВТОРИ (Лише для Адміна) -->
+                <div id="set-coauthors" class="settings-content hidden w-full max-w-3xl mx-auto">
+                    
+                    <!-- БЛОК ДОДАВАННЯ -->
+                    <div class="bg-purple-50 p-6 rounded-xl border border-purple-200 shadow-sm mb-6">
+                        <h4 class="font-bold text-purple-800 mb-4 border-b border-purple-200 pb-2"><i class="fa-solid fa-user-plus mr-2"></i>Додати співавтора до закладу</h4>
+                        <p class="text-xs text-slate-600 mb-4">Введіть email користувача, який вже зареєструвався в системі через Google, щоб надати йому права доступу до вашого закладу.</p>
+                        <div class="flex gap-2 items-start relative w-full">
+                            <div class="flex-1 relative">
+                                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                                <input type="email" id="coauthor-email" placeholder="Пошук (email або ім'я)..." autocomplete="off" class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-purple-500 bg-white">
+                                <div id="coauthor-search-dropdown" class="absolute top-full left-0 right-0 bg-white border border-slate-300 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto hidden z-50 divide-y divide-slate-100"></div>
+                            </div>
+                            <button id="btn-add-coauthor" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors shrink-0">Знайти та додати</button>
+                        </div>
+                    </div>
+
+                    <!-- БЛОК КАТЕГОРІЙ (РОЛІ) -->
+                    <div class="bg-teal-50 p-6 rounded-xl border border-teal-200 shadow-sm mb-6">
+                        <h4 class="font-bold text-teal-800 mb-4 border-b border-teal-200 pb-2"><i class="fa-solid fa-shield-halved mr-2"></i>Категорії доступу (Власні ролі)</h4>
+                        <form id="form-role" class="flex gap-3 mb-4 items-end bg-white p-4 rounded-xl border border-teal-100">
+                            <div class="flex-1">
+                                <label class="block text-xs font-semibold text-teal-700 uppercase mb-1">Назва категорії (напр. Завуч)</label>
+                                <input type="text" id="role-name" required class="w-full p-2 border border-teal-300 rounded-lg text-sm bg-white outline-none focus:border-teal-500">
+                            </div>
+                            <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium py-2 px-6 rounded-lg shadow-sm h-[38px] transition-colors">Створити</button>
+                        </form>
+                        <div class="border border-teal-200 rounded-xl overflow-hidden shadow-sm">
+                            <table class="w-full text-left text-sm bg-white">
+                                <thead class="bg-teal-100 text-teal-800 text-[10px] uppercase">
+                                    <tr>
+                                        <th class="p-2 w-1/4">Назва</th>
+                                        <th class="p-2 text-center" title="Вибірка">Виб.</th>
+                                        <th class="p-2 text-center" title="Тарифікація">Тар.</th>
+                                        <th class="p-2 text-center" title="Екран">Екр.</th>
+                                        <th class="p-2 text-center" title="Вичитка">Вич.</th>
+                                        <th class="p-2 text-center" title="Розклад">Роз.</th>
+                                        <th class="p-2 text-center" title="Заміни">Зам.</th>
+                                        <th class="p-2 text-right">Дія</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="roles-list" class="divide-y divide-teal-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- СПИСОК КОРИСТУВАЧІВ -->
+                    <h4 class="font-bold text-slate-700 mb-3 ml-1">Список користувачів закладу</h4>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3 w-12 text-center">№</th>
+                                    <th class="p-3">Email / Ім'я / Роль</th>
+                                    <th class="p-3 text-right w-24">Дія</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coauthors-list" class="divide-y divide-slate-200 bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div> <!-- Закриває settings-scroll-area -->
+        </div> <!-- Закриває внутрішній контейнер модалки -->
+    </div> <!-- Закриває settings-modal -->
+
+    <!-- ВЛАСНІ СПЛИВАЮЧІ ВІКНА -->
+    <div id="custom-alert-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[400] hidden flex items-center justify-center p-4">
+        <div class="bg-white/95 backdrop-blur-xl w-full max-w-sm rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white">
+            <div class="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                <i class="fa-solid fa-circle-exclamation text-indigo-500"></i><h3 id="custom-alert-title" class="text-base font-bold text-slate-800">Повідомлення</h3>
+            </div>
+            <div class="p-5">
+                <p id="custom-alert-text" class="text-sm text-slate-600 mb-4 font-medium"></p>
+                <input type="text" id="custom-alert-input" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 hidden" autocomplete="off">
+            </div>
+            <div class="p-3 bg-slate-50 flex justify-end gap-2 border-t border-slate-100">
+                <button id="custom-alert-cancel" class="px-4 py-1.5 rounded-lg text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium">Скасувати</button>
+                <button id="custom-alert-confirm" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm">ОК</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ЛОГІКА JS -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, getDoc, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+        // Конфігурація Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyA2AaRKSXq8jZKK859E68ReApwGRA_Dncc",
+            authDomain: "fignia.firebaseapp.com",
+            projectId: "fignia",
+            storageBucket: "fignia.firebasestorage.app",
+            messagingSenderId: "750103604909",
+            appId: "1:750103604909:web:eb776e920374379f0ca024"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        // ЕКСПОРТУЄМО ФУНКЦІЇ ТА ДАНІ ДЛЯ IFRAME
+        window.db = db;
+        window.setDoc = setDoc;
+        window.updateDoc = updateDoc;
+        window.deleteDoc = deleteDoc;
+        window.doc = doc;
+        window.collection = collection;
+
+        window.CURRENT_USER = null;
+        window.CURRENT_ROLE = null; 
+        window.CURRENT_INSTITUTION = null;
+        window.INSTITUTION_NAME = "";
+        window.HAS_LICENSE = false;
+        window.IS_TRIAL = false;
+        window.LICENSE_EXPIRY = 0;
+        
+        window.CURRENT_YEAR = localStorage.getItem('fignia_year') || null;
+        
+        // Глобальні дані для доступу з iframe
+        window.teachersData = []; window.groupsData = []; window.genSubjectsData = []; window.specCategories = []; window.specSubjectsAll = []; 
+        window.workloadMap = {}; window.ekranData = {}; window.generalSettings = {}; window.vychytkaData = {}; window.rozkladData = {}; window.zaminyData = {};
+
+        window.saPendingUsers = [];
+        window.saCurrentInstId = null;
+        window.saSelectedPendingUserId = null;
+        window.saUnsubscribeUsers = null;
+        window.saLatestUsersSnap = null;
+        window.adminPendingUsers = []; 
+        window.yearUnsubscribes = []; 
+
+        function getYearCollection(colName) { 
+            return collection(db, `inst_${window.CURRENT_INSTITUTION}_y_${window.CURRENT_YEAR}_${colName}`); 
+        }
+
+        // ==========================================
+        // БЕЗПЕЧНИЙ API ДЛЯ ЗБЕРЕЖЕННЯ ДАНИХ З IFRAME
+        // ==========================================
+        window.api = {
+            saveWorkload: async (docId, data) => {
+                if(!window.CURRENT_YEAR) return;
+                await setDoc(doc(getYearCollection("workload"), docId), JSON.parse(JSON.stringify(data)), { merge: true });
+            },
+            deleteWorkload: async (docId) => {
+                if(!window.CURRENT_YEAR) return;
+                await deleteDoc(doc(getYearCollection("workload"), docId));
+            },
+            saveEkran: async (docId, data) => {
+                if(!window.CURRENT_YEAR) return;
+                await setDoc(doc(getYearCollection("ekran"), docId), JSON.parse(JSON.stringify(data)), { merge: true });
+            },
+            saveVychytka: async (docId, data) => {
+                if(!window.CURRENT_YEAR) return;
+                await setDoc(doc(getYearCollection("vychytka"), docId), JSON.parse(JSON.stringify(data)), { merge: true });
+            },
+            saveRozklad: async (docId, data) => {
+                if(!window.CURRENT_YEAR) return;
+                await setDoc(doc(getYearCollection("rozklad"), docId), JSON.parse(JSON.stringify(data)), { merge: true });
+            },
+            saveZamina: async (docId, data) => {
+                if(!window.CURRENT_YEAR) return;
+                await setDoc(doc(getYearCollection("zaminy"), docId), JSON.parse(JSON.stringify(data)), { merge: true });
+            }
+        };
+
+        window.onSnapshot = onSnapshot;
+
+        // PWA та Версії
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed:', err));
+            });
+        }
+
+        async function checkAppVersion() {
+            try {
+                const response = await fetch('manifest.json?t=' + Date.now());
+                const manifest = await response.json();
+                const savedVersion = localStorage.getItem('fignia_version');
+                
+                if (!savedVersion) {
+                    localStorage.setItem('fignia_version', manifest.version || '1.0.0');
+                } else if (manifest.version && savedVersion !== manifest.version) {
+                    document.getElementById('update-modal').classList.remove('hidden');
+                    document.getElementById('btn-update-app').onclick = () => {
+                        localStorage.setItem('fignia_version', manifest.version);
+                        if ('caches' in window) {
+                            caches.keys().then(names => {
+                                for (let name of names) caches.delete(name);
+                            });
+                        }
+                        window.location.reload(true);
+                    };
+                }
+            } catch(e) { console.error("Version check failed", e); }
+        }
+        checkAppVersion();
+
+        // Функція нотифікації iframe
+        let notifyTimeout;
+        window.notifyIframe = function() {
+            clearTimeout(notifyTimeout);
+            notifyTimeout = setTimeout(() => {
+                const iframe = document.getElementById('content_frame').contentWindow;
+                if(iframe && typeof iframe.onDataUpdated === 'function') {
+                    iframe.onDataUpdated();
+                }
+            }, 100);
+        };
+
+        window.customConfirm = function(message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('custom-alert-modal'); document.getElementById('custom-alert-text').innerText = message; document.getElementById('custom-alert-input').classList.add('hidden'); document.getElementById('custom-alert-cancel').classList.remove('hidden'); modal.classList.remove('hidden');
+                const btnC = document.getElementById('custom-alert-confirm'); const btnX = document.getElementById('custom-alert-cancel');
+                const clean = () => { modal.classList.add('hidden'); btnC.replaceWith(btnC.cloneNode(true)); btnX.replaceWith(btnX.cloneNode(true)); };
+                btnC.addEventListener('click', () => { clean(); resolve(true); }); btnX.addEventListener('click', () => { clean(); resolve(false); });
+            });
+        };
+        window.customPrompt = function(message, defaultValue = '') {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('custom-alert-modal'); document.getElementById('custom-alert-text').innerText = message; const input = document.getElementById('custom-alert-input'); input.value = defaultValue; input.classList.remove('hidden'); document.getElementById('custom-alert-cancel').classList.remove('hidden'); modal.classList.remove('hidden'); input.focus(); input.select();
+                const btnC = document.getElementById('custom-alert-confirm'); const btnX = document.getElementById('custom-alert-cancel');
+                const clean = () => { modal.classList.add('hidden'); btnC.replaceWith(btnC.cloneNode(true)); btnX.replaceWith(btnX.cloneNode(true)); };
+                btnC.addEventListener('click', () => { clean(); resolve(input.value); }); btnX.addEventListener('click', () => { clean(); resolve(null); });
+                input.addEventListener('keydown', (e) => { if(e.key==='Enter'){e.preventDefault(); clean(); resolve(input.value);} });
+            });
+        };
+
+        document.querySelectorAll('#main-nav .tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if(!window.CURRENT_YEAR) { e.preventDefault(); return; }
+                document.querySelectorAll('#main-nav .tab-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                localStorage.setItem('fignia_active_tab', e.target.getAttribute('href'));
+            });
+        });
+
+        function restoreActiveTab() {
+            let savedTab = localStorage.getItem('fignia_active_tab') || 'vybirka.html';
+            let tabBtn = document.querySelector(`#main-nav .tab-btn[href="${savedTab}"]`);
+            
+            // Якщо збережена вкладка прихована (немає доступу) або її не існує, шукаємо першу доступну
+            if (!tabBtn || tabBtn.style.display === 'none') {
+                const availableTabs = Array.from(document.querySelectorAll('#main-nav .tab-btn')).filter(b => b.style.display !== 'none');
+                
+                if (availableTabs.length > 0) {
+                    tabBtn = availableTabs[0]; // Беремо першу дозволену
+                    savedTab = tabBtn.getAttribute('href');
+                    localStorage.setItem('fignia_active_tab', savedTab);
+                } else {
+                    // Якщо користувачу взагалі не дали жодних прав
+                    document.getElementById('content_frame').src = 'about:blank';
+                    return; 
+                }
+            }
+
+            // Робимо вкладку активною та завантажуємо її у фрейм
+            if (tabBtn) {
+                document.querySelectorAll('#main-nav .tab-btn').forEach(b => b.classList.remove('active'));
+                tabBtn.classList.add('active');
+                document.getElementById('content_frame').src = savedTab;
+            }
+        }
+
+        // --- АВТОРИЗАЦІЯ ТА РОЛІ ---
+        document.getElementById('btn-google-login').addEventListener('click', () => {
+            signInWithPopup(auth, provider).catch(err => { console.error(err); alert('Помилка авторизації: ' + err.message); });
+        });
+
+        const logoutElements = ['btn-logout-pending', 'btn-logout-sa', 'btn-logout-app'];
+        logoutElements.forEach(id => {
+            let el = document.getElementById(id);
+            if (el) el.addEventListener('click', () => { signOut(auth).then(() => window.location.reload()); });
+        });
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById('auth-screen').classList.add('hidden');
+                window.CURRENT_USER = user;
+                
+                const userRef = doc(db, 'users', user.uid);
+                const userSnap = await getDoc(userRef);
+                
+                if (!userSnap.exists()) {
+                    const usersSnap = await getDocs(collection(db, 'users'));
+                    let newRole = usersSnap.empty ? 'superadmin' : 'pending';
+                    
+                    await setDoc(userRef, {
+                        email: user.email,
+                        displayName: user.displayName,
+                        role: newRole,
+                        institutionId: null,
+                        createdAt: Date.now()
+                    });
+                    window.CURRENT_ROLE = newRole;
+                } else {
+                    const userData = userSnap.data();
+                    window.CURRENT_ROLE = userData.role;
+                    window.CURRENT_INSTITUTION = userData.institutionId;
+                }
+
+                routeUserBasedOnRole();
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('pending-screen').classList.add('hidden');
+                document.getElementById('sa-screen').classList.add('hidden');
+                document.getElementById('app-screen').classList.add('hidden');
+                
+                window.yearUnsubscribes.forEach(unsub => unsub());
+                window.yearUnsubscribes = [];
+                if (window.unsubCoauthors) { window.unsubCoauthors(); window.unsubCoauthors = null; }
+            }
+        });
+
+        async function routeUserBasedOnRole() {
+            document.getElementById('pending-screen').classList.add('hidden');
+            document.getElementById('sa-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.add('hidden');
+
+            if (window.CURRENT_ROLE === 'superadmin') {
+                document.getElementById('sa-screen').classList.remove('hidden');
+                initSuperadminPanel();
+            } 
+            else if (window.CURRENT_ROLE === 'pending' || (!window.CURRENT_INSTITUTION && window.CURRENT_ROLE !== 'superadmin')) {
+                document.getElementById('pending-screen').classList.remove('hidden');
+            } 
+            else if (window.CURRENT_ROLE === 'admin' || window.CURRENT_ROLE === 'coauthor') {
+                const instRef = doc(db, 'institutions', window.CURRENT_INSTITUTION);
+                const instSnap = await getDoc(instRef);
+                
+                if (instSnap.exists()) {
+                    const instData = instSnap.data();
+                    window.IS_TRIAL = instData.isTrial || false;
+                    window.LICENSE_EXPIRY = instData.licenseExpiry || 0;
+
+                    if (window.IS_TRIAL && window.LICENSE_EXPIRY < Date.now()) {
+                        await deleteInstitutionData(window.CURRENT_INSTITUTION);
+                        alert("Термін вашої пробної ліцензії закінчився. Заклад та всі дані видалено.");
+                        window.location.reload();
+                        return;
+                    }
+
+                    window.INSTITUTION_NAME = instData.name;
+                    document.getElementById('app-inst-name').innerText = instData.name;
+                    document.getElementById('app-user-info').innerText = window.CURRENT_USER.displayName;
+                    
+                    window.HAS_LICENSE = window.LICENSE_EXPIRY > Date.now();
+                    
+                    if (!window.HAS_LICENSE || window.IS_TRIAL) {
+                        document.getElementById('license-warning').classList.remove('hidden');
+                        if (window.IS_TRIAL) {
+                            let daysLeft = Math.ceil((window.LICENSE_EXPIRY - Date.now()) / (1000 * 60 * 60 * 24));
+                            document.getElementById('license-warning-text').innerText = `Пробна ліцензія. Залишилось днів: ${daysLeft}. Експорт вимкнено.`;
+                        }
+                        
+                        if (!window.HAS_LICENSE) {
+                            document.getElementById('create-year-section').classList.add('hidden', 'opacity-50', 'pointer-events-none');
+                            // Рядок, що приховував кнопку налаштувань, видалено, щоб користувач міг зайти і оплатити
+                        }
+                    }
+
+                    // Блокування експорту/друку для пробних ліцензій
+                    if (window.IS_TRIAL) {
+                        document.getElementById('content_frame').addEventListener('load', function() {
+                            const cw = this.contentWindow;
+                            const blockFunc = () => window.customConfirm("Ця функція недоступна у пробній версії.");
+                            if(cw) {
+                                cw.exportToExcelJS = blockFunc;
+                                cw.exportToWord = blockFunc;
+                                cw.print = blockFunc;
+                            }
+                        });
+                        let btnBackup = document.getElementById('btn-manual-backup');
+                        if(btnBackup) btnBackup.style.display = 'none';
+                        
+                        // Відключаємо імпорт
+                        let btnImport = document.getElementById('btn-settings-restore');
+                        if(btnImport) btnImport.style.display = 'none';
+                    }
+
+                    if (window.CURRENT_ROLE === 'admin') {
+                        document.getElementById('tab-coauthors').classList.remove('hidden');
+                        loadAdminUsersForSearch();
+                        window.setupRealtimeRoles(); // <-- Додано виклик
+                        window.setupRealtimeCoauthors(); 
+                        
+                        if (!window.IS_TRIAL) window.setupAutoBackup();
+                    }
+
+                    // Застосування прав для співавторів
+                    if (window.CURRENT_ROLE === 'coauthor') {
+                        const uData = window.CURRENT_USER ? await getDoc(doc(db, 'users', window.CURRENT_USER.uid)) : null;
+                        const customRoleId = uData?.data()?.customRoleId;
+                        
+                        let perms = { vybirka: 'none', tarif: 'none', ekran: 'none', vychytka: 'none', rozklad: 'none', zamina: 'none' };
+                        
+                        if (customRoleId) {
+                            const roleSnap = await getDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_roles`, customRoleId));
+                            if (roleSnap.exists()) perms = roleSnap.data().permissions || perms;
+                        }
+                        
+                        window.CURRENT_PERMISSIONS = perms; // Зберігаємо глобально для iFrame
+                        
+                        const navMapping = {
+                            'vybirka.html': 'vybirka', 'tarif.html': 'tarif', 'ekran.html': 'ekran',
+                            'vychytka.html': 'vychytka', 'rozklad.html': 'rozklad', 'zamina.html': 'zamina'
+                        };
+                        
+                        document.querySelectorAll('#main-nav .tab-btn').forEach(btn => {
+                            const modKey = navMapping[btn.getAttribute('href')];
+                            if (modKey && perms[modKey] === 'none') {
+                                btn.style.display = 'none'; // Приховуємо вкладку, якщо немає доступу
+                            }
+                        });
+                    } else {
+                        // Для адміна всі права - редагування
+                        window.CURRENT_PERMISSIONS = { vybirka: 'edit', tarif: 'edit', ekran: 'edit', vychytka: 'edit', rozklad: 'edit', zamina: 'edit' };
+                    }
+
+                    document.getElementById('app-screen').classList.remove('hidden');
+                    document.getElementById('app-screen').classList.add('flex');
+                    initYearManager();
+                } else {
+                    document.getElementById('pending-screen').classList.remove('hidden');
+                }
+            }
+        }
+
+        // --- БЕКАП ТА ІМПОРТ ---
+        window.performBackup = async function(manual = false) {
+            if (window.IS_TRIAL) return;
+            if (!manual && sessionStorage.getItem('backup_done')) return;
+            
+            let toast = document.createElement('div');
+            toast.className = "fixed bottom-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg z-[1000] text-sm font-bold transition-opacity duration-500";
+            toast.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Створення резервної копії...`;
+            document.body.appendChild(toast);
+
+            try {
+                let backupData = {
+                    timestamp: Date.now(),
+                    institutionId: window.CURRENT_INSTITUTION,
+                    institutionName: window.INSTITUTION_NAME,
+                    years: {}
+                };
+
+                const yearsSnap = await getDocs(collection(db, `inst_${window.CURRENT_INSTITUTION}_academic_years`));
+                const years = [];
+                yearsSnap.forEach(d => years.push(d.id));
+
+                for (let y of years) {
+                    backupData.years[y] = {};
+                    const cols = ['settings', 'teachers', 'groups', 'gen_subjects', 'spec_categories', 'spec_subjects', 'workload', 'ekran', 'vychytka', 'rozklad', 'zaminy'];
+                    for (let c of cols) {
+                        const snap = await getDocs(collection(db, `inst_${window.CURRENT_INSTITUTION}_y_${y}_${c}`));
+                        backupData.years[y][c] = {};
+                        snap.forEach(doc => {
+                            backupData.years[y][c][doc.id] = doc.data();
+                        });
+                    }
+                }
+
+                const dataStr = JSON.stringify(backupData, null, 2);
+                const blob = new Blob([dataStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                
+                const now = new Date();
+                const pad = (n) => n.toString().padStart(2, '0');
+                const dStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+                
+                a.href = url;
+                a.download = `${window.INSTITUTION_NAME.replace(/\s+/g, '_')}_${dStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                toast.innerHTML = `<i class="fa-solid fa-check mr-2"></i>Резервну копію збережено!`;
+                if (!manual) sessionStorage.setItem('backup_done', 'true');
+            } catch(e) {
+                console.error("Backup failed", e);
+                toast.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i>Помилка резервного копіювання!`;
+                toast.classList.replace('bg-indigo-600', 'bg-red-600');
+            }
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        };
+
+        window.setupAutoBackup = function() {
+			// Автоматичний бекап при першому кліку вимкнено для збереження лімітів Firestore.
+			// Резервні копії тепер створюються лише вручну через відповідні кнопки.
+		};
+
+        document.getElementById('btn-settings-restore').addEventListener('click', () => {
+            if (window.CURRENT_ROLE !== 'admin') {
+                return alert("Імпорт бази даних доступний лише Адміністратору закладу.");
+            }
+            document.getElementById('import-db-file').click();
+        });
+
+        document.getElementById('import-db-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!await window.customConfirm("УВАГА! Імпорт бази даних ПОВНІСТЮ ЗАТРЕ всі існуючі дані вашого закладу за ВСІ РОКИ, які містяться у файлі. Ви впевнені, що хочете продовжити?")) {
+                e.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (!data.years || typeof data.years !== 'object') {
+                        throw new Error("Невірний формат файлу бази даних.");
+                    }
+
+                    let toast = document.createElement('div');
+                    toast.className = "fixed bottom-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg z-[1000] text-sm font-bold transition-opacity duration-500";
+                    toast.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Імпорт бази даних... Не закривайте вікно!`;
+                    document.body.appendChild(toast);
+
+                    for (const year in data.years) {
+                        await setDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_academic_years`, year), { created: Date.now() }, { merge: true });
+
+                        const yearData = data.years[year];
+                        const cols = ['settings', 'teachers', 'groups', 'gen_subjects', 'spec_categories', 'spec_subjects', 'workload', 'ekran', 'vychytka', 'rozklad', 'zaminy'];
+                        
+                        for (const col of cols) {
+                            if (yearData[col]) {
+                                for (const docId in yearData[col]) {
+                                    await setDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_y_${year}_${col}`, docId), yearData[col][docId]);
+                                }
+                            }
+                        }
+                    }
+
+                    toast.innerHTML = `<i class="fa-solid fa-check mr-2"></i>Імпорт успішно завершено!`;
+                    setTimeout(() => {
+                        toast.style.opacity = '0';
+                        setTimeout(() => { toast.remove(); window.location.reload(); }, 500);
+                    }, 2000);
+
+                } catch (error) {
+                    console.error("Import failed:", error);
+                    alert("Помилка імпорту: " + error.message);
+                } finally {
+                    e.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Створення пробного закладу
+        document.getElementById('btn-create-trial').addEventListener('click', async () => {
+            let instName = await window.customPrompt("Введіть назву вашого навчального закладу для пробного періоду:");
+            if (!instName || !instName.trim()) return;
+
+            let expiry = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 днів
+            
+            const instRef = await addDoc(collection(db, 'institutions'), { 
+                name: instName.trim(), 
+                licenseExpiry: expiry, 
+                isTrial: true,
+                createdAt: Date.now() 
+            });
+
+            await updateDoc(doc(db, 'users', window.CURRENT_USER.uid), {
+                role: 'admin',
+                institutionId: instRef.id
+            });
+
+            window.location.reload();
+        });
+
+        // Повне видалення даних закладу
+        async function deleteInstitutionData(instId) {
+            const yearsSnap = await getDocs(collection(db, `inst_${instId}_academic_years`));
+            const years = [];
+            yearsSnap.forEach(d => years.push(d.id));
+            
+            for (let y of years) {
+                const cols = ['workload', 'ekran', 'vychytka', 'rozklad', 'groups', 'teachers', 'gen_subjects', 'spec_categories', 'spec_subjects', 'zaminy'];
+                for (let c of cols) {
+                    const snap = await getDocs(collection(db, `inst_${instId}_y_${y}_${c}`));
+                    const promises = [];
+                    snap.forEach(docSnap => promises.push(deleteDoc(docSnap.ref)));
+                    await Promise.all(promises);
+                }
+                await deleteDoc(doc(db, `inst_${instId}_academic_years`, y));
+                await deleteDoc(doc(db, `inst_${instId}_y_${y}_settings`, 'general'));
+            }
+            
+            const usersSnap = await getDocs(query(collection(db, 'users'), where('institutionId', '==', instId)));
+            const upromises = [];
+            usersSnap.forEach(u => upromises.push(updateDoc(doc(db, 'users', u.id), { role: 'pending', institutionId: null })));
+            await Promise.all(upromises);
+            
+            await deleteDoc(doc(db, 'institutions', instId));
+        }
+
+        // --- ПАНЕЛЬ СУПЕРАДМІНА ---
+        async function initSuperadminPanel() {
+            await renderSaInstitutions();
+            window.setupRealtimeSaUsers();
+            
+            document.querySelectorAll('.sa-tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.sa-tab-btn').forEach(b => {
+                        b.classList.remove('active', 'border-b-2', 'border-indigo-600', 'text-indigo-600', 'font-bold');
+                        b.classList.add('text-slate-500', 'font-medium');
+                    });
+                    e.target.classList.add('active', 'border-b-2', 'border-indigo-600', 'text-indigo-600', 'font-bold');
+                    e.target.classList.remove('text-slate-500', 'font-medium');
+                    
+                    document.querySelectorAll('.sa-list-container').forEach(c => c.classList.add('hidden'));
+                    document.getElementById(e.target.dataset.target).classList.remove('hidden');
+                });
+            });
+        }
+
+        document.getElementById('btn-sa-add-inst').addEventListener('click', async () => {
+            const input = document.getElementById('sa-inst-name');
+            const name = input.value.trim();
+            if (!name) return;
+            
+            await addDoc(collection(db, 'institutions'), { name: name, licenseExpiry: 0, isTrial: false, createdAt: Date.now() });
+            input.value = '';
+            await renderSaInstitutions();
+        });
+
+        // =====================================
+        // НОВА ЛОГІКА БАНКІВ ТА КВИТАНЦІЙ
+        // =====================================
+        let globalBanks = [];
+        let globalCost = 0;
+        let currentManagingInstId = null;
+
+        window.openSaBanksModal = async function() {
+            document.getElementById('sa-banks-modal').classList.remove('hidden');
+            const docSnap = await getDoc(doc(db, 'global_settings', 'payment_info'));
+            if(docSnap.exists()) {
+                globalCost = docSnap.data().annualCost || 0;
+                globalBanks = docSnap.data().banks || [];
+            }
+            document.getElementById('sa-annual-cost').value = globalCost;
+            renderSaBanks();
+        };
+
+        document.getElementById('btn-save-cost').addEventListener('click', async () => {
+            const cost = document.getElementById('sa-annual-cost').value;
+            await setDoc(doc(db, 'global_settings', 'payment_info'), { annualCost: parseInt(cost), banks: globalBanks }, { merge: true });
+            alert("Вартість збережено");
+        });
+
+        document.getElementById('btn-add-bank').addEventListener('click', async () => {
+            const name = document.getElementById('sa-bank-name').value;
+            const link = document.getElementById('sa-bank-link').value;
+            const qr = document.getElementById('sa-bank-qr').value;
+            if(!name || !link) return alert("Введіть назву та посилання");
+            
+            globalBanks.push({ id: Date.now().toString(), name, link, qr });
+            await setDoc(doc(db, 'global_settings', 'payment_info'), { banks: globalBanks }, { merge: true });
+            document.getElementById('sa-bank-name').value = ''; document.getElementById('sa-bank-link').value = ''; document.getElementById('sa-bank-qr').value = '';
+            renderSaBanks();
+        });
+
+        window.deleteBank = async function(id) {
+            globalBanks = globalBanks.filter(b => b.id !== id);
+            await setDoc(doc(db, 'global_settings', 'payment_info'), { banks: globalBanks }, { merge: true });
+            renderSaBanks();
+        };
+
+        function renderSaBanks() {
+            let html = '';
+            globalBanks.forEach(b => {
+                html += `<div class="flex justify-between items-center bg-slate-50 p-2 border border-slate-200 rounded"><span class="font-bold text-sm">${b.name}</span><button onclick="window.deleteBank('${b.id}')" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-trash"></i></button></div>`;
+            });
+            document.getElementById('sa-banks-list').innerHTML = html;
+        }
+
+        // ОНОВЛЕНА функція відображення закладів
+        window.renderSaInstitutions = async function() {
+            const snap = await getDocs(collection(db, 'institutions'));
+            let htmlFull = ''; let htmlTrial = '';
+            
+            snap.forEach(d => {
+                let inst = d.data();
+                let isLicActive = inst.licenseExpiry > Date.now();
+                let licText = isLicActive ? `<span class="text-green-600 font-bold">Активна до ${new Date(inst.licenseExpiry).toLocaleDateString('uk-UA')}</span>` : `<span class="text-red-500 font-bold">Неактивна</span>`;
+                
+                // Червоний кружечок, якщо є квитанція
+                let receiptBadge = inst.pendingReceipt ? '<span class="absolute -top-1 -right-1 flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>' : '';
+
+                let block = `
+                <div class="bg-white border border-slate-200 p-3 rounded-lg flex flex-col gap-2 shadow-sm hover:border-indigo-400 hover:shadow transition-all cursor-pointer" data-id="${d.id}" data-name="${inst.name.replace(/"/g, '&quot;')}" onclick="window.selectSaInstitution(this.dataset.id, this.dataset.name)">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1"><div class="font-bold text-slate-800">${inst.name}</div><div class="text-xs mt-1">${licText}</div></div>
+                        <div class="flex gap-1 shrink-0 relative">
+                            <button onclick="event.stopPropagation(); window.manageLicenseFull('${d.id}')" class="relative bg-purple-100 hover:bg-purple-200 text-purple-700 p-2 rounded transition-colors" title="Керувати ліцензією"><i class="fa-solid fa-key"></i>${receiptBadge}</button>
+                            <button onclick="event.stopPropagation(); window.deleteSaInstitution('${d.id}')" class="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded transition-colors" title="Видалити заклад"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>`;
+                if (inst.isTrial) htmlTrial += block; else htmlFull += block;
+            });
+            document.getElementById('sa-inst-list-full').innerHTML = htmlFull || '<div class="text-slate-400 text-sm">Немає повноцінних закладів</div>';
+            document.getElementById('sa-inst-list-trial').innerHTML = htmlTrial || '<div class="text-slate-400 text-sm">Немає пробних закладів</div>';
+        };
+
+        // ОНОВЛЕНА функція керування ліцензією
+        window.manageLicenseFull = async function(instId) {
+            currentManagingInstId = instId;
+            const instSnap = await getDoc(doc(db, 'institutions', instId));
+            const instData = instSnap.data();
+            
+            document.getElementById('sa-lic-manage-title').innerText = instData.name;
+            document.getElementById('sa-license-modal').classList.remove('hidden');
+            
+            if(instData.licenseExpiry > 0) {
+                document.getElementById('sa-manual-date').value = new Date(instData.licenseExpiry).toISOString().split('T')[0];
+            } else {
+                document.getElementById('sa-manual-date').value = '';
+            }
+
+            const receiptSec = document.getElementById('sa-receipt-section');
+            const container = document.getElementById('sa-receipt-container');
+            
+            if(instData.pendingReceipt) {
+                receiptSec.classList.remove('hidden');
+                let r = instData.pendingReceipt;
+                
+                // Перевіряємо тип квитанції: Посилання, PDF чи Зображення
+                if(r.type === 'link') {
+                    container.innerHTML = `<a href="${r.data}" target="_blank" class="block w-full bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold py-3 px-4 rounded-lg text-center border border-blue-300 transition-colors"><i class="fa-solid fa-arrow-up-right-from-square mr-2"></i>Відкрити посилання на квитанцію</a>`;
+                } else if(r.mime === 'application/pdf') {
+                    container.innerHTML = `
+                        <embed src="${r.data}" type="application/pdf" width="100%" height="250px" class="border border-orange-300 rounded-lg mb-2">
+                        <a href="${r.data}" download="receipt.pdf" class="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex justify-center items-center gap-1"><i class="fa-solid fa-download"></i> Завантажити PDF</a>`;
+                } else {
+                    container.innerHTML = `<img src="${r.data}" class="w-full h-48 object-cover rounded-lg border border-orange-300 cursor-pointer shadow-sm hover:opacity-90" onclick="window.open(this.src)">`;
+                }
+            } else {
+                receiptSec.classList.add('hidden');
+            }
+        };
+
+        // Кнопки схвалення / відхилення
+        document.getElementById('btn-save-manual-date').addEventListener('click', async () => {
+            if(!currentManagingInstId) return;
+            const dateVal = document.getElementById('sa-manual-date').value;
+            let expiryTs = dateVal ? new Date(dateVal).getTime() : 0;
+            await updateDoc(doc(db, 'institutions', currentManagingInstId), { licenseExpiry: expiryTs, isTrial: false });
+            document.getElementById('sa-license-modal').classList.add('hidden');
+            window.renderSaInstitutions();
+        });
+
+        document.getElementById('btn-approve-receipt').addEventListener('click', async () => {
+            if(!currentManagingInstId) return;
+            const instSnap = await getDoc(doc(db, 'institutions', currentManagingInstId));
+            let currentExpiry = instSnap.data().licenseExpiry || Date.now();
+            if (currentExpiry < Date.now()) currentExpiry = Date.now();
+            
+            let d = new Date(currentExpiry);
+            d.setFullYear(d.getFullYear() + 1); // +1 рік
+            
+            await updateDoc(doc(db, 'institutions', currentManagingInstId), { licenseExpiry: d.getTime(), isTrial: false, pendingReceipt: null });
+            document.getElementById('sa-license-modal').classList.add('hidden');
+            window.renderSaInstitutions();
+        });
+
+        document.getElementById('btn-reject-receipt').addEventListener('click', async () => {
+            if(!currentManagingInstId) return;
+            await updateDoc(doc(db, 'institutions', currentManagingInstId), { pendingReceipt: null });
+            document.getElementById('sa-license-modal').classList.add('hidden');
+            window.renderSaInstitutions();
+        });
+
+        // ----------------------------------------------------
+        // ЛОГІКА ВІДПРАВКИ КВИТАНЦІЇ ЗІ СТОРОНИ АДМІНІСТРАТОРА
+        // ----------------------------------------------------
+        const payReceiptFile = document.getElementById('pay-receipt-file');
+        const payReceiptLink = document.getElementById('pay-receipt-link');
+        const btnSendReceipt = document.getElementById('btn-send-receipt');
+
+        function checkReceiptInputs() {
+            if(payReceiptFile.files.length > 0 || payReceiptLink.value.trim() !== '') {
+                btnSendReceipt.classList.remove('hidden');
+            } else {
+                btnSendReceipt.classList.add('hidden');
+            }
+        }
+        payReceiptFile.addEventListener('change', checkReceiptInputs);
+        payReceiptLink.addEventListener('input', checkReceiptInputs);
+
+        btnSendReceipt.addEventListener('click', () => {
+            const file = payReceiptFile.files[0];
+            const link = payReceiptLink.value.trim();
+
+            if (file) {
+                // Перевірка розміру (макс 1 МБ, щоб не перевантажити Firestore)
+                if(file.size > 1048576) {
+                    return alert("Файл завеликий! Максимальний розмір 1 МБ. Будь ласка, стисніть файл або вставте посилання на квитанцію.");
+                }
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    btnSendReceipt.innerText = "Надсилання...";
+                    await updateDoc(doc(db, 'institutions', window.CURRENT_INSTITUTION), { 
+                        pendingReceipt: { type: 'file', data: event.target.result, mime: file.type } 
+                    });
+                    finishReceiptSend();
+                };
+                reader.readAsDataURL(file);
+            } else if (link) {
+                btnSendReceipt.innerText = "Надсилання...";
+                updateDoc(doc(db, 'institutions', window.CURRENT_INSTITUTION), { 
+                    pendingReceipt: { type: 'link', data: link } 
+                }).then(finishReceiptSend);
+            }
+        });
+
+        function finishReceiptSend() {
+            document.getElementById('payment-modal').classList.add('hidden');
+            btnSendReceipt.innerText = "Надіслати на перевірку";
+            payReceiptFile.value = ''; payReceiptLink.value = '';
+            alert("Квитанцію надіслано на перевірку суперадміністратору!");
+            loadAdminPaymentInfo();
+        }
+
+        window.openPaymentFrame = function(name, link, qr) {
+            document.getElementById('pay-bank-name').innerText = `Оплата: ${name}`;
+            document.getElementById('pay-bank-link').href = link;
+            document.getElementById('pay-bank-qr').src = qr || '';
+            document.getElementById('payment-modal').classList.remove('hidden');
+            payReceiptFile.value = ''; payReceiptLink.value = '';
+            btnSendReceipt.classList.add('hidden');
+        };
+
+        
+        window.renderLicenseTab = async function() {
+            document.getElementById('lic-inst-name').innerText = window.INSTITUTION_NAME;
+            const badge = document.getElementById('lic-status-badge');
+            const type = document.getElementById('lic-type');
+            const exp = document.getElementById('lic-expiry-date');
+            
+            if (window.LICENSE_EXPIRY === 0) {
+                badge.className = "inline-block px-4 py-1.5 rounded-full font-bold text-sm mb-6 bg-red-100 text-red-700";
+                badge.innerText = "Ліцензія неактивна";
+                type.innerText = "Немає доступу";
+                exp.innerText = "—";
+            } else {
+                const isExpired = window.LICENSE_EXPIRY < Date.now();
+                const d = new Date(window.LICENSE_EXPIRY);
+                exp.innerText = d.toLocaleDateString('uk-UA');
+                
+                type.innerText = window.IS_TRIAL ? "Пробна (Trial)" : "Повноцінна";
+
+                if (isExpired) {
+                    badge.className = "inline-block px-4 py-1.5 rounded-full font-bold text-sm mb-6 bg-red-100 text-red-700";
+                    badge.innerText = "Ліцензія закінчилась";
+                } else {
+                    badge.className = "inline-block px-4 py-1.5 rounded-full font-bold text-sm mb-6 bg-green-100 text-green-700";
+                    badge.innerText = "Ліцензія активна";
+                }
+            }
+
+            // --- БЕЗПЕЧНЕ ЗАВАНТАЖЕННЯ БАНКІВ ДЛЯ АДМІНІСТРАТОРА ---
+            if (window.CURRENT_ROLE === 'admin' && typeof loadAdminPaymentInfo === 'function') {
+                await loadAdminPaymentInfo();
+            }
+        };
+
+        async function loadAdminPaymentInfo() {
+            try {
+                const docSnap = await getDoc(doc(db, 'global_settings', 'payment_info'));
+                const bc = document.getElementById('lic-banks-container');
+                const licDisplay = document.getElementById('lic-annual-cost-display');
+
+                if(docSnap.exists()) {
+                    let pData = docSnap.data();
+                    if(licDisplay) licDisplay.innerText = pData.annualCost || 0;
+                    
+                    let html = '';
+                    let banks = pData.banks || [];
+                    
+                    if (banks.length > 0) {
+                        banks.forEach(b => {
+                            html += `<button onclick="window.openPaymentFrame('${b.name}', '${b.link}', '${b.qr}')" class="bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 py-3 px-4 rounded-xl shadow-sm transition-all font-bold text-sm flex justify-center items-center"><i class="fa-solid fa-building-columns text-indigo-500 mr-2"></i>${b.name}</button>`;
+                        });
+                    } else {
+                        html = '<div class="col-span-2 text-center text-sm text-slate-400 mt-2">Реквізити банків ще не додані суперадміном</div>';
+                    }
+                    if(bc) bc.innerHTML = html;
+                } else {
+                    if(licDisplay) licDisplay.innerText = "0";
+                    if(bc) bc.innerHTML = '<div class="col-span-2 text-center text-sm text-slate-400 mt-2">Реквізити не налаштовані суперадміном</div>';
+                }
+                
+                // Перевірка наявності відправленої квитанції
+                const instSnap = await getDoc(doc(db, 'institutions', window.CURRENT_INSTITUTION));
+                const msg = document.getElementById('receipt-pending-msg');
+                
+                if(instSnap.exists() && instSnap.data().pendingReceipt) {
+                    if(msg) msg.classList.remove('hidden');
+                    if(bc) bc.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    if(msg) msg.classList.add('hidden');
+                    if(bc) bc.classList.remove('opacity-50', 'pointer-events-none');
+                }
+            } catch(e) {
+                console.error("Помилка завантаження банків: ", e);
+            }
+        }
+        // =====================================
+
+        window.deleteSaInstitution = async function(instId) {
+            if(await customConfirm("Ви впевнені, що хочете ВИДАЛИТИ цей заклад і всі його дані?")) {
+                await deleteInstitutionData(instId);
+                if(window.saCurrentInstId === instId) document.getElementById('sa-btn-back-users').click();
+                await renderSaInstitutions();
+            }
+        };
+
+        window.setupRealtimeSaUsers = function() {
+            if (window.saUnsubscribeUsers) window.saUnsubscribeUsers();
+            window.saUnsubscribeUsers = onSnapshot(collection(db, 'users'), async (usersSnap) => {
+                window.saLatestUsersSnap = usersSnap;
+                const instSnap = await getDocs(collection(db, 'institutions'));
+                let institutions = []; instSnap.forEach(d => institutions.push({id: d.id, name: d.data().name}));
+                window.saPendingUsers = []; let html = '';
+                
+                usersSnap.forEach(d => {
+                    let u = d.data(); if (u.role === 'superadmin') return; 
+                    if (u.role === 'pending' || !u.institutionId) window.saPendingUsers.push({ id: d.id, email: u.email, name: u.displayName || 'Без імені' });
+                    
+                    let instSelectHtml = `<select onchange="window.assignAdmin('${d.id}', this.value)" class="p-1 border border-slate-300 rounded text-xs outline-none focus:border-indigo-500 w-32"><option value="">-- Обрати заклад --</option>`;
+                    institutions.forEach(inst => { let sel = (u.institutionId === inst.id) ? 'selected' : ''; instSelectHtml += `<option value="${inst.id}" ${sel}>${inst.name}</option>`; });
+                    instSelectHtml += `</select>`;
+
+                    let roleBadge = u.role === 'pending' ? '<span class="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-[10px] font-bold">Очікує</span>' : (u.role === 'admin' ? '<span class="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold">Адмін</span>' : '<span class="bg-teal-100 text-teal-600 px-2 py-0.5 rounded text-[10px] font-bold">Співавтор</span>');
+
+                    html += `
+                    <div class="bg-white border border-slate-200 p-3 rounded-lg flex justify-between items-center shadow-sm gap-2">
+                        <div class="flex-1 overflow-hidden"><div class="font-bold text-slate-800 text-sm truncate" title="${u.email}">${u.email}</div><div class="flex items-center gap-2 mt-1">${roleBadge}<span class="text-[10px] text-slate-500 truncate">${u.displayName || 'Без імені'}</span></div></div>
+                        <div class="flex flex-col items-end gap-1 shrink-0">
+                            <span class="text-[10px] text-slate-500 font-semibold uppercase">Призначити Адміном:</span>
+                            <div class="flex items-center gap-1">
+                                ${instSelectHtml}
+                                <button onclick="window.deleteUserAccount('${d.id}')" class="p-1 px-2 bg-red-50 hover:bg-red-100 text-red-500 rounded transition-colors" title="Видалити акаунт назавжди"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                document.getElementById('sa-users-list').innerHTML = html || '<div class="text-slate-400 text-sm">Немає користувачів</div>';
+                if (window.saCurrentInstId) window.renderSaInstUsersList();
+            });
+        };
+
+        window.assignAdmin = async function(userId, instId) {
+            if (!instId) { if(await customConfirm("Забрати всі права у користувача?")) await updateDoc(doc(db, 'users', userId), { role: 'pending', institutionId: null }); return; }
+            if(await customConfirm("Призначити користувача Адміністратором цього закладу?")) await updateDoc(doc(db, 'users', userId), { role: 'admin', institutionId: instId });
+        };
+
+        window.selectSaInstitution = async function(instId, instName) {
+            window.saCurrentInstId = instId;
+            document.getElementById('sa-users-all-view').classList.add('hidden'); document.getElementById('sa-users-inst-view').classList.remove('hidden'); document.getElementById('sa-btn-back-users').classList.remove('hidden');
+            document.getElementById('sa-users-title').innerHTML = `<i class="fa-solid fa-users text-indigo-500 mr-2"></i>Користувачі: ${instName}`;
+            await window.renderSaInstUsersList();
+        };
+
+        document.getElementById('sa-btn-back-users').addEventListener('click', () => {
+            window.saCurrentInstId = null;
+            document.getElementById('sa-users-all-view').classList.remove('hidden'); document.getElementById('sa-users-inst-view').classList.add('hidden'); document.getElementById('sa-btn-back-users').classList.add('hidden');
+            document.getElementById('sa-users-title').innerHTML = `<i class="fa-solid fa-users-gear text-teal-500 mr-2"></i>Користувачі системи`;
+        });
+
+        window.renderSaInstUsersList = async function() {
+            if (!window.saCurrentInstId || !window.saLatestUsersSnap) return;
+            let html = '';
+            window.saLatestUsersSnap.forEach(d => {
+                let u = d.data(); if(u.role === 'superadmin' || u.institutionId !== window.saCurrentInstId) return;
+                let roleBadge = u.role === 'admin' ? '<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold">Адміністратор</span>' : '<span class="bg-teal-100 text-teal-700 px-2 py-0.5 rounded text-[10px] font-bold">Співавтор</span>';
+                html += `
+                <div class="bg-white border border-slate-200 p-3 rounded-lg flex justify-between items-center shadow-sm">
+                    <div><div class="font-bold text-slate-800 text-sm">${u.email}</div><div class="flex items-center gap-2 mt-1">${roleBadge}<span class="text-xs text-slate-500">${u.displayName || 'Без імені'}</span></div></div>
+                    <div class="flex items-center gap-2">
+                        <select onchange="window.changeSaInstUserRole('${d.id}', this.value)" class="text-xs font-bold text-slate-700 p-1.5 border border-slate-300 rounded outline-none focus:border-teal-500 bg-slate-50 cursor-pointer"><option value="admin" ${u.role==='admin'?'selected':''}>Адмін</option><option value="coauthor" ${u.role==='coauthor'?'selected':''}>Співавтор</option></select>
+                        <button onclick="window.removeSaInstUser('${d.id}')" class="text-orange-400 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 p-1.5 rounded transition-colors" title="Прибрати із закладу (зробити 'Очікує')"><i class="fa-solid fa-user-minus"></i></button>
+                        <button onclick="window.deleteUserAccount('${d.id}')" class="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded transition-colors" title="Видалити акаунт назавжди"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('sa-inst-users-assigned').innerHTML = html || '<div class="text-slate-400 text-sm text-center p-4">Ще немає призначених користувачів</div>';
+        };
+
+        const saSearchInput = document.getElementById('sa-search-pending'); const saSearchDropdown = document.getElementById('sa-search-dropdown'); const saBtnAdd = document.getElementById('sa-btn-add-inst-user');
+        saSearchInput.addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase().trim(); window.saSelectedPendingUserId = null; saBtnAdd.disabled = true;
+            if (val.length < 2) { saSearchDropdown.classList.add('hidden'); return; }
+            const results = window.saPendingUsers.filter(u => u.email.toLowerCase().includes(val) || u.name.toLowerCase().includes(val));
+            if (results.length === 0) { saSearchDropdown.innerHTML = '<div class="p-3 text-xs text-slate-500 text-center">Нікого не знайдено</div>'; } 
+            else { let html = ''; results.forEach(u => { html += `<div class="p-3 hover:bg-teal-50 cursor-pointer transition-colors" onclick="window.selectSaPendingUser('${u.id}', '${u.email}', '${u.name.replace(/'/g, "\\'")}')"><div class="font-bold text-slate-700 text-sm">${u.email}</div><div class="text-xs text-slate-500">${u.name}</div></div>`; }); saSearchDropdown.innerHTML = html; }
+            saSearchDropdown.classList.remove('hidden');
+        });
+
+        window.selectSaPendingUser = function(id, email, name) { window.saSelectedPendingUserId = id; saSearchInput.value = `${email} (${name})`; saSearchDropdown.classList.add('hidden'); saBtnAdd.disabled = false; };
+        document.addEventListener('click', (e) => { if (saSearchInput && !saSearchInput.contains(e.target) && !saSearchDropdown.contains(e.target)) saSearchDropdown.classList.add('hidden'); });
+        saBtnAdd.addEventListener('click', async () => {
+            if (!window.saSelectedPendingUserId || !window.saCurrentInstId) return;
+            const role = document.getElementById('sa-new-user-role').value; saBtnAdd.disabled = true; saBtnAdd.innerText = '...';
+            await updateDoc(doc(db, 'users', window.saSelectedPendingUserId), { role: role, institutionId: window.saCurrentInstId });
+            saSearchInput.value = ''; window.saSelectedPendingUserId = null; saBtnAdd.innerText = 'Додати';
+        });
+
+        window.removeSaInstUser = async function(userId) { if(await window.customConfirm("Видалити користувача з цього закладу?")) await updateDoc(doc(db, 'users', userId), { role: 'pending', institutionId: null }); };
+        window.changeSaInstUserRole = async function(userId, newRole) { await updateDoc(doc(db, 'users', userId), { role: newRole }); };
+		window.deleteUserAccount = async function(userId) {
+            if (await window.customConfirm("Ви впевнені, що хочете НАЗАВЖДИ видалити цей акаунт з бази даних? Цю дію неможливо скасувати.")) {
+                try {
+                    await deleteDoc(doc(db, 'users', userId));
+                } catch (err) {
+                    alert("Помилка при видаленні: " + err.message);
+                }
+            }
+        };
+
+        // --- КЕРУВАННЯ СПІВАВТОРАМИ ---
+        async function loadAdminUsersForSearch() {
+            if (window.CURRENT_ROLE !== 'admin') return;
+            const snap = await getDocs(query(collection(db, "users")));
+            window.adminPendingUsers = [];
+            snap.forEach(d => { let u = d.data(); if (u.role !== 'superadmin' && (u.role === 'pending' || !u.institutionId)) window.adminPendingUsers.push({ id: d.id, email: u.email, name: u.displayName || 'Без імені' }); });
+        }
+
+        const coauthorInput = document.getElementById('coauthor-email'); const coauthorDropdown = document.getElementById('coauthor-search-dropdown'); const btnAddCoauthor = document.getElementById('btn-add-coauthor');
+        if (coauthorInput && coauthorDropdown) {
+            coauthorInput.addEventListener('input', (e) => {
+                const val = e.target.value.toLowerCase().trim(); if (val.length < 2) { coauthorDropdown.classList.add('hidden'); return; }
+                const results = window.adminPendingUsers.filter(u => u.email.toLowerCase().includes(val) || u.name.toLowerCase().includes(val));
+                if (results.length === 0) coauthorDropdown.innerHTML = '<div class="p-3 text-xs text-slate-500 text-center">Користувачів не знайдено</div>';
+                else { let html = ''; results.forEach(u => { html += `<div class="p-3 hover:bg-purple-50 cursor-pointer transition-colors" onclick="window.selectCoauthor('${u.email}')"><div class="font-bold text-slate-700 text-sm">${u.email}</div><div class="text-xs text-slate-500">${u.name}</div></div>`; }); coauthorDropdown.innerHTML = html; }
+                coauthorDropdown.classList.remove('hidden');
+            });
+            window.selectCoauthor = function(email) { coauthorInput.value = email; coauthorDropdown.classList.add('hidden'); };
+            document.addEventListener('click', (e) => { if (coauthorInput && !coauthorInput.contains(e.target) && !coauthorDropdown.contains(e.target)) coauthorDropdown.classList.add('hidden'); });
+        }
+
+        if (btnAddCoauthor) {
+            btnAddCoauthor.addEventListener('click', async () => {
+                const emailInput = document.getElementById('coauthor-email').value.trim().toLowerCase(); if (!emailInput) return;
+                const querySnapshot = await getDocs(query(collection(db, "users"), where("email", "==", emailInput)));
+                if (querySnapshot.empty) return alert("Користувача з таким email не знайдено в системі. Нехай він спочатку увійде через Google.");
+                let userDoc = querySnapshot.docs[0]; let uData = userDoc.data();
+                if (uData.role === 'superadmin' || uData.role === 'admin') return alert("Неможливо змінити роль адміністратору.");
+                await updateDoc(doc(db, 'users', userDoc.id), { role: 'coauthor', institutionId: window.CURRENT_INSTITUTION });
+                document.getElementById('coauthor-email').value = ''; alert("Співавтора успішно додано!"); loadAdminUsersForSearch(); 
+            });
+        }
+
+        window.rolesData = [];
+        
+        window.setupRealtimeRoles = function() {
+            if (!window.CURRENT_INSTITUTION) return;
+            onSnapshot(collection(db, `inst_${window.CURRENT_INSTITUTION}_roles`), (snap) => {
+                window.rolesData = [];
+                snap.forEach(d => window.rolesData.push({ id: d.id, ...d.data() }));
+                renderRolesList();
+                if (window.latestCoauthorsSnap) renderCoauthorsList(window.latestCoauthorsSnap);
+            });
+        };
+
+        function renderRolesList() {
+            let html = '';
+            const modules = ['vybirka', 'tarif', 'ekran', 'vychytka', 'rozklad', 'zamina'];
+            window.rolesData.forEach((role) => {
+                let selects = modules.map(mod => `
+                    <td class="p-1 text-center">
+                        <select onchange="window.updateRolePermission('${role.id}', '${mod}', this.value)" class="text-[10px] p-1 border border-teal-200 rounded ${role.permissions[mod] === 'edit' ? 'bg-green-100 text-green-800 font-bold' : (role.permissions[mod] === 'read' ? 'bg-blue-100 text-blue-800' : 'bg-slate-50 text-slate-500')} outline-none cursor-pointer">
+                            <option value="none" ${role.permissions[mod] === 'none' ? 'selected' : ''}>Ні</option>
+                            <option value="read" ${role.permissions[mod] === 'read' ? 'selected' : ''}>Чит.</option>
+                            <option value="edit" ${role.permissions[mod] === 'edit' ? 'selected' : ''}>Ред.</option>
+                        </select>
+                    </td>
+                `).join('');
+                html += `<tr class="hover:bg-slate-50 border-b border-teal-100"><td class="p-2 font-bold text-teal-800 text-xs">${role.name}</td>${selects}<td class="p-2 text-right"><button onclick="window.deleteRole('${role.id}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+            });
+            const rlist = document.getElementById('roles-list');
+            if(rlist) rlist.innerHTML = html || '<tr><td colspan="8" class="p-4 text-center text-slate-400">Категорії ще не створено</td></tr>';
+        }
+
+        const roleForm = document.getElementById('form-role');
+        if(roleForm) {
+            roleForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('role-name').value;
+                const defaultPerms = { vybirka: 'none', tarif: 'none', ekran: 'none', vychytka: 'none', rozklad: 'none', zamina: 'none' };
+                await addDoc(collection(db, `inst_${window.CURRENT_INSTITUTION}_roles`), { name: name, permissions: defaultPerms });
+                e.target.reset();
+            });
+        }
+
+        window.updateRolePermission = async (roleId, module, value) => {
+            await updateDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_roles`, roleId), { [`permissions.${module}`]: value });
+        };
+
+        window.deleteRole = async (roleId) => {
+            if(await customConfirm('Видалити цю категорію? Усі користувачі з цією роллю втратять права.')) {
+                await deleteDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_roles`, roleId));
+            }
+        };
+
+        window.setupRealtimeCoauthors = function() {
+            if (window.unsubCoauthors) window.unsubCoauthors(); 
+            if (!window.CURRENT_INSTITUTION) return;
+            
+            // Оператор 'in' дозволяє вивести і адмінів, і співавторів
+            window.unsubCoauthors = onSnapshot(query(collection(db, "users"), where("institutionId", "==", window.CURRENT_INSTITUTION), where("role", "in", ["coauthor", "admin"])), (querySnapshot) => {
+                window.latestCoauthorsSnap = querySnapshot;
+                if (window.CURRENT_ROLE === 'admin') renderCoauthorsList(querySnapshot);
+            });
+        };
+
+        function renderCoauthorsList(querySnapshot) {
+            let html = ''; let i = 1;
+            
+            let roleOptions = '<option value="">-- Без категорії --</option>';
+            window.rolesData.forEach(r => { roleOptions += `<option value="${r.id}">${r.name}</option>`; });
+
+            querySnapshot.forEach((d) => { 
+                let u = d.data(); 
+                let isMe = d.id === window.CURRENT_USER.uid;
+                
+                // Системна роль: Адмін чи Співавтор (селект або просто текст, якщо це ви)
+                let systemRoleSelect = isMe ? 
+                    (u.role === 'admin' ? '<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold">Адмін (Ви)</span>' : '<span class="bg-teal-100 text-teal-700 px-2 py-0.5 rounded text-[10px] font-bold">Співавтор (Ви)</span>')
+                    : `<select onchange="window.changeCoauthorSystemRole('${d.id}', this.value)" class="text-[10px] font-bold p-1 border border-slate-300 rounded outline-none cursor-pointer ${u.role === 'admin' ? 'bg-indigo-50 text-indigo-700' : 'bg-teal-50 text-teal-700'}">
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Адмін</option>
+                        <option value="coauthor" ${u.role === 'coauthor' ? 'selected' : ''}>Співавтор</option>
+                       </select>`;
+                
+                // Категорія доступу (відображається лише для співавторів, бо адміни мають повний доступ)
+                let categorySelect = '';
+                if (u.role === 'coauthor') {
+                    categorySelect = `<select onchange="window.updateCoauthorCategory('${d.id}', this.value)" class="text-xs p-1.5 border border-slate-300 rounded outline-none bg-slate-50 cursor-pointer w-32 mt-1">${roleOptions}</select>`;
+                    if (u.customRoleId) {
+                        categorySelect = categorySelect.replace(`value="${u.customRoleId}"`, `value="${u.customRoleId}" selected`);
+                    }
+                }
+
+                let deleteBtn = isMe ? '' : `<button onclick="window.removeCoauthor('${d.id}')" class="text-red-400 hover:text-red-600 px-2 py-1" title="Видалити з закладу"><i class="fa-solid fa-trash"></i></button>`;
+
+                html += `
+                <tr class="hover:bg-slate-50 border-b border-slate-100">
+                    <td class="p-2 text-center text-slate-400 text-xs font-bold">${i++}</td>
+                    <td class="p-2">
+                        <div class="font-bold text-slate-700 text-sm flex items-center gap-2">${u.email} ${systemRoleSelect}</div>
+                        <div class="text-xs text-slate-500">${u.displayName || 'Без імені'}</div>
+                        ${categorySelect}
+                    </td>
+                    <td class="p-2 text-right align-middle">${deleteBtn}</td>
+                </tr>`; 
+            });
+            const clist = document.getElementById('coauthors-list'); 
+            if(clist) clist.innerHTML = html || '<tr><td colspan="3" class="p-4 text-center text-slate-400">Користувачів ще немає</td></tr>';
+        }
+
+        window.changeCoauthorSystemRole = async function(userId, newRole) {
+            let roleName = newRole === 'admin' ? 'Адміністратор' : 'Співавтор';
+            if (await customConfirm(`Змінити глобальну роль користувача на "${roleName}"?`)) {
+                await updateDoc(doc(db, 'users', userId), { role: newRole });
+            } else {
+                // Якщо скасували, перемальовуємо список, щоб повернути селект в початковий стан
+                if (window.latestCoauthorsSnap) renderCoauthorsList(window.latestCoauthorsSnap);
+            }
+        };
+
+        window.updateCoauthorCategory = async function(userId, roleId) {
+            await updateDoc(doc(db, 'users', userId), { customRoleId: roleId || null });
+        };
+
+        window.removeCoauthor = async function(userId) { 
+            if(await customConfirm("Видалити користувача з закладу?")) { 
+                await updateDoc(doc(db, 'users', userId), { role: 'pending', institutionId: null, customRoleId: null }); 
+                loadAdminUsersForSearch(); 
+            } 
+        };
+
+        // --- ЛОГІКА РОКІВ ---
+        async function loadYearsList() {
+            if (!window.CURRENT_INSTITUTION) return [];
+            const snap = await getDocs(collection(db, `inst_${window.CURRENT_INSTITUTION}_academic_years`));
+            let years = []; snap.forEach(d => years.push(d.id)); return years.sort().reverse();
+        }
+
+        async function initYearManager(forceShowModal = false) {
+            const years = await loadYearsList();
+            const selectEl = document.getElementById('year-select'); const migSelectEl = document.getElementById('migrate-source-year');
+            selectEl.innerHTML = ''; migSelectEl.innerHTML = '';
+            
+            if (window.CURRENT_YEAR && !years.includes(window.CURRENT_YEAR)) { window.CURRENT_YEAR = null; localStorage.removeItem('fignia_year'); }
+
+            if (years.length > 0) {
+                years.forEach(y => {
+                    const opt = document.createElement('option'); opt.value = y; opt.innerText = y + ' н.р.';
+                    if(y === window.CURRENT_YEAR) opt.selected = true; selectEl.appendChild(opt);
+                    const optM = document.createElement('option'); optM.value = y; optM.innerText = 'З року: ' + y; migSelectEl.appendChild(optM);
+                });
+                if(!window.CURRENT_YEAR) selectEl.selectedIndex = 0;
+            } else {
+                selectEl.innerHTML = '<option disabled value="">Немає створених років</option>'; migSelectEl.innerHTML = '<option disabled value="">Немає даних для переносу</option>';
+            }
+
+            if (!window.CURRENT_YEAR || forceShowModal) document.getElementById('year-modal').classList.remove('hidden');
+            
+           if (window.CURRENT_YEAR) {
+                document.getElementById('close-year-modal-btn').classList.remove('hidden');
+                document.getElementById('current-year-display').innerText = window.CURRENT_YEAR + ' н.р.';
+                document.getElementById('set-year-label').innerText = window.CURRENT_YEAR;
+                document.getElementById('mode-empty').classList.add('hidden');
+                document.getElementById('content_frame').classList.remove('hidden');
+                restoreActiveTab(); 
+                await loadAllData();
+            } else {
+                document.getElementById('close-year-modal-btn').classList.add('hidden');
+                document.getElementById('current-year-display').innerText = 'Оберіть рік';
+                document.getElementById('set-year-label').innerText = 'Не обрано';
+                document.getElementById('mode-empty').classList.remove('hidden');
+                document.getElementById('content_frame').classList.add('hidden');
+                window.yearUnsubscribes.forEach(unsub => unsub()); window.yearUnsubscribes = [];
+            }
+        }
+
+        document.getElementById('close-year-modal-btn').addEventListener('click', () => { document.getElementById('year-modal').classList.add('hidden'); });
+        document.getElementById('migrate-check').addEventListener('change', (e) => { const options = document.getElementById('migration-options'); if(e.target.checked) options.classList.replace('hidden', 'flex'); else options.classList.replace('flex', 'hidden'); });
+
+        document.getElementById('add-year-btn').addEventListener('click', async () => {
+            if (!window.HAS_LICENSE && !window.IS_TRIAL) return alert("У вас немає ліцензії для створення нового навчального року.");
+            const input = document.getElementById('new-year-input'); const newYear = input.value.trim();
+            if (newYear.length < 4) return alert('Введіть коректну назву року (напр. 2026-2027)');
+            
+            document.getElementById('add-year-btn').innerText = 'Створення... Зачекайте'; document.getElementById('add-year-btn').disabled = true;
+            await setDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_academic_years`, newYear), { created: Date.now() });
+
+            const isMigrating = document.getElementById('migrate-check').checked; const sourceYear = document.getElementById('migrate-source-year').value;
+            if (isMigrating && sourceYear) {
+                const copyCol = async (colName) => {
+                    const snap = await getDocs(collection(db, `inst_${window.CURRENT_INSTITUTION}_y_${sourceYear}_${colName}`));
+                    const promises = []; snap.forEach(d => { promises.push(setDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_y_${newYear}_${colName}`, d.id), d.data())); });
+                    await Promise.all(promises);
+                };
+                if (document.getElementById('mig-settings').checked) { const docSnap = await getDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_y_${sourceYear}_settings`, 'general')); if(docSnap.exists()) await setDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_y_${newYear}_settings`, 'general'), docSnap.data()); }
+                if (document.getElementById('mig-teachers').checked) await copyCol("teachers"); if (document.getElementById('mig-groups').checked) await copyCol("groups");
+                if (document.getElementById('mig-subjects').checked) { await copyCol("gen_subjects"); await copyCol("spec_categories"); await copyCol("spec_subjects"); }
+                if (document.getElementById('mig-workload').checked) await copyCol("workload"); if (document.getElementById('mig-ekran').checked) await copyCol("ekran");
+            }
+
+            input.value = ''; document.getElementById('migrate-check').checked = false; document.getElementById('migration-options').classList.replace('flex', 'hidden');
+            window.CURRENT_YEAR = newYear; localStorage.setItem('fignia_year', window.CURRENT_YEAR);
+            document.getElementById('year-modal').classList.add('hidden');
+            document.getElementById('current-year-display').innerText = window.CURRENT_YEAR + ' н.р.'; document.getElementById('set-year-label').innerText = window.CURRENT_YEAR;
+            document.getElementById('add-year-btn').innerText = 'Створити та відкрити'; document.getElementById('add-year-btn').disabled = false;
+            document.getElementById('mode-empty').classList.add('hidden'); document.getElementById('content_frame').classList.remove('hidden');
+            await loadAllData();
+        });
+
+        document.getElementById('confirm-year-btn').addEventListener('click', async () => {
+            const select = document.getElementById('year-select');
+            if(select.value && select.value !== '') {
+                window.CURRENT_YEAR = select.value; localStorage.setItem('fignia_year', window.CURRENT_YEAR);
+                document.getElementById('year-modal').classList.add('hidden');
+                document.getElementById('current-year-display').innerText = window.CURRENT_YEAR + ' н.р.'; document.getElementById('set-year-label').innerText = window.CURRENT_YEAR;
+                document.getElementById('mode-empty').classList.add('hidden'); document.getElementById('content_frame').classList.remove('hidden');
+                await loadAllData();
+            }
+        });
+
+        document.getElementById('current-year-btn').addEventListener('click', () => initYearManager(true));
+
+        // --- ЗАВАНТАЖЕННЯ ДАНИХ ТА СИНХРОНІЗАЦІЯ В РЕАЛЬНОМУ ЧАСІ ---
+        async function loadAllData() {
+            if(!window.CURRENT_YEAR || !window.CURRENT_INSTITUTION) return;
+
+            window.yearUnsubscribes.forEach(unsub => unsub()); window.yearUnsubscribes = [];
+
+            window.yearUnsubscribes.push(onSnapshot(doc(db, `inst_${window.CURRENT_INSTITUTION}_y_${window.CURRENT_YEAR}_settings`, 'general'), (docSnap) => {
+                window.generalSettings = docSnap.exists() ? docSnap.data() : { dirFull: '', dirShort: '', profFull: '', profShort: '' };
+                window.notifyIframe(); 
+                if (!document.getElementById('settings-modal').classList.contains('hidden')) {
+                    renderSettingsGeneral();
+                    renderLicenseTab();
+                }
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("teachers"), (snap) => {
+                window.teachersData = []; snap.forEach(d => window.teachersData.push({ id: d.id, ...d.data() }));
+                window.teachersData.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+                window.notifyIframe(); if (!document.getElementById('settings-modal').classList.contains('hidden')) renderSettingsTeachers();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("groups"), (snap) => {
+                window.groupsData = []; snap.forEach(d => window.groupsData.push({ id: d.id, ...d.data() }));
+                window.groupsData.sort((a, b) => { let numA = parseInt(a.num) || 0; let numB = parseInt(b.num) || 0; if (numA !== numB) return numA - numB; if (a.course !== b.course) return a.course - b.course; return a.name.localeCompare(b.name, 'uk', { numeric: true }); });
+                window.notifyIframe(); if (!document.getElementById('settings-modal').classList.contains('hidden')) renderSettingsGroups();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("gen_subjects"), (snap) => {
+                let rawGen = []; snap.forEach(d => rawGen.push({ id: d.id, ...d.data() }));
+                window.genSubjectsData = rawGen.sort((a, b) => (a.order || 0) - (b.order || 0));
+                window.notifyIframe(); if (!document.getElementById('settings-modal').classList.contains('hidden')) renderSettingsGenSubj();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("spec_categories"), (snap) => {
+                window.specCategories = []; snap.forEach(d => window.specCategories.push({ id: d.id, ...d.data() }));
+                window.specCategories.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                window.notifyIframe(); if (!document.getElementById('settings-modal').classList.contains('hidden')) renderSettingsSpec();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("spec_subjects"), (snap) => {
+                let rawSpec = []; snap.forEach(d => rawSpec.push({ id: d.id, ...d.data() }));
+                window.specSubjectsAll = rawSpec.sort((a, b) => (a.order || 0) - (b.order || 0));
+                window.notifyIframe(); if (!document.getElementById('settings-modal').classList.contains('hidden')) renderSettingsSpec();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("workload"), (snap) => {
+                snap.docChanges().forEach(change => { if (change.type === 'removed') delete window.workloadMap[change.doc.id]; else window.workloadMap[change.doc.id] = change.doc.data(); });
+                window.notifyIframe();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("ekran"), (snap) => {
+                snap.docChanges().forEach(change => { if (change.type === 'removed') delete window.ekranData[change.doc.id]; else window.ekranData[change.doc.id] = change.doc.data(); });
+                window.notifyIframe();
+            }));
+            
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("vychytka"), (snap) => {
+                snap.docChanges().forEach(change => { if (change.type === 'removed') delete window.vychytkaData[change.doc.id]; else window.vychytkaData[change.doc.id] = change.doc.data(); });
+                window.notifyIframe();
+            }));
+
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("rozklad"), (snap) => {
+                snap.docChanges().forEach(change => { if (change.type === 'removed') delete window.rozkladData[change.doc.id]; else window.rozkladData[change.doc.id] = change.doc.data(); });
+                window.notifyIframe();
+            }));
+            
+            window.yearUnsubscribes.push(onSnapshot(getYearCollection("zaminy"), (snap) => {
+                snap.docChanges().forEach(change => { if (change.type === 'removed') delete window.zaminyData[change.doc.id]; else window.zaminyData[change.doc.id] = change.doc.data(); });
+                window.notifyIframe();
+            }));
+        }
+
+        // --- ЛОГІКА НАЛАШТУВАНЬ ---
+        const modalEl = document.getElementById('settings-modal');
+        document.getElementById('open-settings-btn').addEventListener('click', async () => { 
+            // Якщо ліцензія активна, але рік не обрано - просимо обрати. Якщо ліцензії немає - пускаємо без року.
+            if (!window.CURRENT_YEAR && window.HAS_LICENSE) { alert("Спершу оберіть або створіть навчальний рік у менеджері років!"); return; }
+            
+            document.getElementById('settings-modal').classList.remove('hidden'); 
+            
+            // Завантажуємо дані лише якщо є обраний рік, щоб уникнути помилок
+            if (window.CURRENT_YEAR) {
+                renderSettingsGeneral(); renderSettingsTeachers(); renderSettingsGroups(); renderSettingsGenSubj(); renderSettingsSpec(); 
+            }
+            renderLicenseTab(); 
+            
+            // Якщо ліцензія неактивна, одразу перемикаємо користувача на вкладку "Ліцензія"
+            if (!window.HAS_LICENSE) {
+                document.getElementById('tab-license').click();
+            }
+        });
+        document.getElementById('close-settings-btn').addEventListener('click', async () => { modalEl.classList.add('hidden'); });
+        
+        document.querySelectorAll('.settings-tab').forEach(btn => { 
+            btn.addEventListener('click', (e) => { 
+                document.querySelectorAll('.settings-tab').forEach(b => b.classList.remove('active')); 
+                document.querySelectorAll('.settings-content').forEach(c => c.classList.add('hidden')); 
+                e.target.classList.add('active'); 
+                document.getElementById(e.target.dataset.tab).classList.remove('hidden'); 
+            }); 
+        });
+		
+        document.querySelectorAll('.subj-sub-tab').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.subj-sub-tab').forEach(b => { b.classList.remove('active', 'text-indigo-600', 'border-b-2', 'border-indigo-600'); b.classList.add('text-slate-500', 'hover:text-slate-700'); });
+                e.target.classList.add('active', 'text-indigo-600', 'border-b-2', 'border-indigo-600'); e.target.classList.remove('text-slate-500', 'hover:text-slate-700');
+                document.querySelectorAll('.subj-content').forEach(c => { c.classList.add('hidden'); c.classList.remove('block'); });
+                document.getElementById(e.target.getAttribute('data-target')).classList.remove('hidden'); document.getElementById(e.target.getAttribute('data-target')).classList.add('block');
+            });
+        });
+
+        
+        function renderSettingsGeneral() {
+			document.getElementById('set-dir-full').value = window.generalSettings.dirFull || ''; document.getElementById('set-dir-short').value = window.generalSettings.dirShort || '';
+			document.getElementById('set-prof-full').value = window.generalSettings.profFull || ''; document.getElementById('set-prof-short').value = window.generalSettings.profShort || '';
+            document.getElementById('set-dep1-pos').value = window.generalSettings.dep1Pos || ''; document.getElementById('set-dep1-full').value = window.generalSettings.dep1Full || ''; document.getElementById('set-dep1-short').value = window.generalSettings.dep1Short || '';
+            document.getElementById('set-dep2-pos').value = window.generalSettings.dep2Pos || ''; document.getElementById('set-dep2-full').value = window.generalSettings.dep2Full || ''; document.getElementById('set-dep2-short').value = window.generalSettings.dep2Short || '';
+            document.getElementById('set-dep3-pos').value = window.generalSettings.dep3Pos || ''; document.getElementById('set-dep3-full').value = window.generalSettings.dep3Full || ''; document.getElementById('set-dep3-short').value = window.generalSettings.dep3Short || '';
+            document.getElementById('set-meth-pos').value = window.generalSettings.methPos || ''; document.getElementById('set-meth-full').value = window.generalSettings.methFull || ''; document.getElementById('set-meth-short').value = window.generalSettings.methShort || '';
+            document.getElementById('set-studprof-pos').value = window.generalSettings.studprofPos || ''; document.getElementById('set-studprof-full').value = window.generalSettings.studprofFull || ''; document.getElementById('set-studprof-short').value = window.generalSettings.studprofShort || '';
+			document.getElementById('set-sem1-start').value = window.generalSettings.sem1Start || ''; document.getElementById('set-sem1-end').value = window.generalSettings.sem1End || '';
+			document.getElementById('set-sem2-start').value = window.generalSettings.sem2Start || ''; document.getElementById('set-sem2-end').value = window.generalSettings.sem2End || '';
+            document.getElementById('set-work-days').value = window.generalSettings.workDays || '5';
+            document.getElementById('set-lessons-regular').value = window.generalSettings.lessonsRegular || '8';
+            document.getElementById('set-lessons-last').value = window.generalSettings.lessonsLast || '6';
+		}
+        
+        document.getElementById('btn-save-general').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-save-general'); const originalText = btn.innerText; btn.innerText = "Збереження..."; btn.disabled = true;
+            let newSettings = {
+				dirFull: document.getElementById('set-dir-full').value.trim(), dirShort: document.getElementById('set-dir-short').value.trim(), profFull: document.getElementById('set-prof-full').value.trim(), profShort: document.getElementById('set-prof-short').value.trim(),
+                dep1Pos: document.getElementById('set-dep1-pos').value.trim(), dep1Full: document.getElementById('set-dep1-full').value.trim(), dep1Short: document.getElementById('set-dep1-short').value.trim(),
+                dep2Pos: document.getElementById('set-dep2-pos').value.trim(), dep2Full: document.getElementById('set-dep2-full').value.trim(), dep2Short: document.getElementById('set-dep2-short').value.trim(),
+                dep3Pos: document.getElementById('set-dep3-pos').value.trim(), dep3Full: document.getElementById('set-dep3-full').value.trim(), dep3Short: document.getElementById('set-dep3-short').value.trim(),
+                methPos: document.getElementById('set-meth-pos').value.trim(), methFull: document.getElementById('set-meth-full').value.trim(), methShort: document.getElementById('set-meth-short').value.trim(),
+                studprofPos: document.getElementById('set-studprof-pos').value.trim(), studprofFull: document.getElementById('set-studprof-full').value.trim(), studprofShort: document.getElementById('set-studprof-short').value.trim(),
+				sem1Start: document.getElementById('set-sem1-start').value, sem1End: document.getElementById('set-sem1-end').value, sem2Start: document.getElementById('set-sem2-start').value, sem2End: document.getElementById('set-sem2-end').value,
+                workDays: document.getElementById('set-work-days').value,
+                lessonsRegular: parseInt(document.getElementById('set-lessons-regular').value) || 8,
+                lessonsLast: parseInt(document.getElementById('set-lessons-last').value) || 6
+			};
+            await setDoc(doc(db, `inst_${window.CURRENT_INSTITUTION}_y_${window.CURRENT_YEAR}_settings`, 'general'), newSettings);
+            btn.innerText = "Збережено!"; btn.classList.replace('bg-indigo-600', 'bg-green-600');
+            setTimeout(() => { btn.innerText = originalText; btn.classList.replace('bg-green-600', 'bg-indigo-600'); btn.disabled = false; }, 2000);
+        });
+
+        // Налаштування: Викладачі
+        let editingTeacherId = null; const resetTeacherForm = () => { editingTeacherId = null; document.getElementById('form-teacher').reset(); document.getElementById('btn-submit-teacher').innerText = 'Додати'; document.getElementById('btn-cancel-teacher').classList.add('hidden'); }; document.getElementById('btn-cancel-teacher').addEventListener('click', resetTeacherForm);
+        document.getElementById('form-teacher').addEventListener('submit', async (e) => { e.preventDefault(); const name = document.getElementById('t-name').value; const position = document.getElementById('t-position').value; if (editingTeacherId) await updateDoc(doc(getYearCollection("teachers"), editingTeacherId), { name, position }); else await addDoc(getYearCollection("teachers"), { name, position }); resetTeacherForm(); });
+        window.prepareEditTeacher = (id, name, position) => { editingTeacherId = id; document.getElementById('t-name').value = name; document.getElementById('t-position').value = position; document.getElementById('btn-submit-teacher').innerText = 'Зберегти'; document.getElementById('btn-cancel-teacher').classList.remove('hidden'); document.getElementById('settings-scroll-area').scrollTo({ top: 0, behavior: 'smooth' }); };
+        window.deleteTeacher = async (id) => { 
+            if(await customConfirm('Видалити викладача? Усі призначені йому години у Вибірці будуть автоматично зняті (звільнені).')) { 
+                let promises = [];
+                for (let key in window.workloadMap) {
+                    let rec = window.workloadMap[key];
+                    let updates = {};
+                    if (rec.teacherId === id) updates.teacherId = null;
+                    if (rec.teacherId2 === id) updates.teacherId2 = null;
+                    if (Object.keys(updates).length > 0) {
+                        promises.push(updateDoc(doc(getYearCollection("workload"), key), updates));
+                    }
+                }
+                promises.push(deleteDoc(doc(getYearCollection("teachers"), id)));
+                await Promise.all(promises);
+            } 
+        };
+        function renderSettingsTeachers() { let html = ''; window.teachersData.forEach((d, i) => { html += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="p-2 text-center text-slate-400 text-xs font-bold">${i + 1}</td><td class="p-2 font-medium text-sm text-slate-700">${d.name}</td><td class="p-2 text-slate-500"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-semibold text-slate-600">${d.position}</span></td><td class="p-2 text-right flex justify-end gap-2"><button onclick="window.prepareEditTeacher('${d.id}', '${d.name}', '${d.position}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="window.deleteTeacher('${d.id}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button></td></tr>`; }); document.getElementById('teachers-list').innerHTML = html || '<tr><td colspan="4" class="p-4 text-center">Немає</td></tr>'; }
+
+        // Налаштування: Групи
+        let editingGroupId = null; const resetGroupForm = () => { editingGroupId = null; document.getElementById('form-group').reset(); document.getElementById('btn-submit-group').innerText = 'Додати'; document.getElementById('btn-cancel-group').classList.add('hidden'); }; document.getElementById('btn-cancel-group').addEventListener('click', resetGroupForm);
+        document.getElementById('form-group').addEventListener('submit', async (e) => { e.preventDefault(); const num = document.getElementById('g-num').value; const name = document.getElementById('g-name').value; const course = document.getElementById('g-course').value; const education = document.getElementById('g-edu').value; if (editingGroupId) await updateDoc(doc(getYearCollection("groups"), editingGroupId), { num, name, course, education }); else await addDoc(getYearCollection("groups"), { num, name, course, education }); resetGroupForm(); });
+        window.prepareEditGroup = (id, num, name, course, education) => { editingGroupId = id; document.getElementById('g-num').value = num; document.getElementById('g-name').value = name; document.getElementById('g-course').value = course; document.getElementById('g-edu').value = education; document.getElementById('btn-submit-group').innerText = 'Зберегти'; document.getElementById('btn-cancel-group').classList.remove('hidden'); document.getElementById('settings-scroll-area').scrollTo({ top: 0, behavior: 'smooth' }); };
+        window.deleteGroup = async (id) => { if(await customConfirm('Видалити групу?')) { await deleteDoc(doc(getYearCollection("groups"), id)); } };
+        function renderSettingsGroups() { let html = ''; window.groupsData.forEach((d, i) => { const bc = d.education.includes('Повна') ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'; html += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="p-2 text-center text-slate-400 text-xs font-bold">${i + 1}</td><td class="p-2 font-bold text-slate-800 text-sm">${d.num || ''}</td><td class="p-2 font-bold text-indigo-700 text-sm">${d.name}</td><td class="p-2 text-sm text-slate-700">${d.course} курс</td><td class="p-2"><span class="text-[10px] font-semibold px-2 py-1 rounded ${bc}">${d.education}</span></td><td class="p-2 text-right flex justify-end gap-2"><button onclick="window.prepareEditGroup('${d.id}', '${d.num || ''}', '${d.name}', '${d.course}', '${d.education}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="window.deleteGroup('${d.id}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button></td></tr>`; }); document.getElementById('groups-list').innerHTML = html || '<tr><td colspan="6" class="p-4 text-center">Немає</td></tr>'; }
+
+        // Налаштування: Заг.Предмети
+        document.getElementById('form-gen-subj').addEventListener('submit', async (e) => { 
+            e.preventDefault(); 
+            const lastOrder = window.genSubjectsData.length > 0 ? (window.genSubjectsData[window.genSubjectsData.length - 1].order || 0) : 0;
+            const order = lastOrder + 10; 
+            await addDoc(getYearCollection("gen_subjects"), { name: document.getElementById('gs-name').value, isSplit: document.getElementById('gs-split').checked, isExcluded: document.getElementById('gs-exclude').checked, order: order }); 
+            document.getElementById('form-gen-subj').reset(); 
+        });
+        window.toggleGenSplit = async (id, isChecked) => { await updateDoc(doc(getYearCollection("gen_subjects"), id), { isSplit: isChecked }); };
+        window.toggleGenExclude = async (id, isChecked) => { await updateDoc(doc(getYearCollection("gen_subjects"), id), { isExcluded: isChecked }); };
+        window.deleteGenSubject = async (id) => { 
+            if(await customConfirm('Видалити предмет? УСІ години цього предмета будуть безповоротно видалені з Вибірки!')) { 
+                let promises = [];
+                for (let key in window.workloadMap) {
+                    if (key.startsWith(`gen_${id}_`)) {
+                        promises.push(deleteDoc(doc(getYearCollection("workload"), key)));
+                    }
+                }
+                promises.push(deleteDoc(doc(getYearCollection("gen_subjects"), id)));
+                await Promise.all(promises);
+            } 
+        };
+        window.editGenSubject = async (id, oldName) => { const newName = await customPrompt('Нова назва:', oldName); if (newName && newName !== oldName) { await updateDoc(doc(getYearCollection("gen_subjects"), id), { name: newName.trim() }); } };
+        window.swapGenOrder = async (id1, id2) => { if(!id2) return; const o1 = window.genSubjectsData.find(s=>s.id===id1); const o2 = window.genSubjectsData.find(s=>s.id===id2); await Promise.all([updateDoc(doc(getYearCollection("gen_subjects"), id1), { order: o2.order }), updateDoc(doc(getYearCollection("gen_subjects"), id2), { order: o1.order })]); };
+        function renderSettingsGenSubj() { let html = ''; window.genSubjectsData.forEach((d, i) => { html += `<tr class="hover:bg-slate-50 border-b border-slate-100 ${d.isExcluded ? 'bg-orange-50/20' : ''}"><td class="p-2 text-center text-slate-400 text-xs font-bold">${i + 1}</td><td class="p-2 font-medium text-slate-700 text-sm ${d.isExcluded ? 'text-orange-800' : ''}">${d.name}</td><td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 text-indigo-600 cursor-pointer" ${d.isSplit ? 'checked' : ''} onchange="window.toggleGenSplit('${d.id}', this.checked)"></td><td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 text-orange-500 cursor-pointer" ${d.isExcluded ? 'checked' : ''} onchange="window.toggleGenExclude('${d.id}', this.checked)"></td><td class="p-2 text-right flex justify-end gap-3 items-center"><button onclick="window.swapGenOrder('${d.id}', '${window.genSubjectsData[i-1]?.id || ''}')" class="${i===0?'text-slate-200':'text-slate-400'}"><i class="fa-solid fa-arrow-up"></i></button><button onclick="window.swapGenOrder('${d.id}', '${window.genSubjectsData[i+1]?.id || ''}')" class="${i===window.genSubjectsData.length-1?'text-slate-200':'text-slate-400'} mr-2"><i class="fa-solid fa-arrow-down"></i></button><button onclick="window.editGenSubject('${d.id}', '${d.name}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="window.deleteGenSubject('${d.id}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button></td></tr>`; }); document.getElementById('gen-subj-list').innerHTML = html; }
+
+        // Налаштування: Спецпредмети
+		document.getElementById('form-spec-cat').addEventListener('submit', async (e) => { 
+			e.preventDefault(); 
+			await addDoc(getYearCollection("spec_categories"), { name: document.getElementById('scat-name').value, color: document.getElementById('scat-color').value, createdAt: Date.now() }); 
+			e.target.reset(); document.getElementById('scat-color').value = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+		});
+		window.deleteSpecCategory = async (id) => { 
+            if(await customConfirm('УВАГА! Видалити категорію? Усі її предмети та виділені на них години будуть назавжди видалені!')) { 
+                let promises = [];
+                let subjectsToDelete = window.specSubjectsAll.filter(s => s.categoryId === id);
+                subjectsToDelete.forEach(subj => {
+                    for (let key in window.workloadMap) {
+                        if (key.startsWith(`spec_${subj.id}_`)) {
+                            promises.push(deleteDoc(doc(getYearCollection("workload"), key)));
+                        }
+                    }
+                    promises.push(deleteDoc(doc(getYearCollection("spec_subjects"), subj.id)));
+                });
+                promises.push(deleteDoc(doc(getYearCollection("spec_categories"), id)));
+                await Promise.all(promises);
+            } 
+        };
+		window.editSpecCategory = async (id, oldName) => { const newName = await customPrompt('Нова назва категорії:', oldName); if (newName && newName !== oldName) { await updateDoc(doc(getYearCollection("spec_categories"), id), { name: newName.trim() }); } };
+		window.updateSpecCategoryColor = async (id, newColor) => { await updateDoc(doc(getYearCollection("spec_categories"), id), { color: newColor }); };
+        
+        window.addSpecSubject = async (event, catId) => { 
+            event.preventDefault(); const input = document.getElementById(`input-spec-${catId}`); 
+            const catSubjects = window.specSubjectsAll.filter(s => s.categoryId === catId); 
+            const lastOrder = catSubjects.length > 0 ? (catSubjects[catSubjects.length - 1].order || 0) : 0;
+            await addDoc(getYearCollection("spec_subjects"), { name: input.value, categoryId: catId, isSplit: false, order: lastOrder + 10 }); 
+        };
+        window.toggleSpecSplit = async (id, isChecked) => { await updateDoc(doc(getYearCollection("spec_subjects"), id), { isSplit: isChecked }); };
+        window.deleteSpecSubject = async (id) => { 
+            if(await customConfirm('Видалити предмет? УСІ години цього предмета будуть безповоротно видалені з Вибірки!')) { 
+                let promises = [];
+                for (let key in window.workloadMap) {
+                    if (key.startsWith(`spec_${id}_`)) {
+                        promises.push(deleteDoc(doc(getYearCollection("workload"), key)));
+                    }
+                }
+                promises.push(deleteDoc(doc(getYearCollection("spec_subjects"), id)));
+                await Promise.all(promises);
+            } 
+        };
+        window.editSpecSubject = async (id, oldName) => { const newName = await customPrompt('Нова назва:', oldName); if (newName && newName !== oldName) { await updateDoc(doc(getYearCollection("spec_subjects"), id), { name: newName.trim() }); } };
+        window.swapSpecOrder = async (id1, id2) => { if(!id2) return; const o1 = window.specSubjectsAll.find(s=>s.id===id1); const o2 = window.specSubjectsAll.find(s=>s.id===id2); await Promise.all([updateDoc(doc(getYearCollection("spec_subjects"), id1), { order: o2.order }), updateDoc(doc(getYearCollection("spec_subjects"), id2), { order: o1.order })]); };
+		
+        function renderSettingsSpec() { 
+			const container = document.getElementById('spec-categories-container'); container.innerHTML = ''; 
+			window.specCategories.forEach((cat) => { 
+				const catSubjects = window.specSubjectsAll.filter(s => s.categoryId === cat.id); let tbodyHtml = ''; 
+				catSubjects.forEach((sData, sIndex) => { tbodyHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100"><td class="p-2 text-center text-slate-400 text-xs font-bold">${sIndex + 1}</td><td class="p-2 font-medium text-slate-700 text-sm">${sData.name}</td><td class="p-2 text-center"><input type="checkbox" class="w-4 h-4 text-teal-600 cursor-pointer" ${sData.isSplit ? 'checked' : ''} onchange="window.toggleSpecSplit('${sData.id}', this.checked)"></td><td class="p-2 text-right flex justify-end gap-3 items-center"><button onclick="window.swapSpecOrder('${sData.id}', '${catSubjects[sIndex-1]?.id || ''}')" class="${sIndex===0?'text-slate-200':'text-slate-400'}"><i class="fa-solid fa-arrow-up"></i></button><button onclick="window.swapSpecOrder('${sData.id}', '${catSubjects[sIndex+1]?.id || ''}')" class="${sIndex===catSubjects.length-1?'text-slate-200':'text-slate-400'} mr-2"><i class="fa-solid fa-arrow-down"></i></button><button onclick="window.editSpecSubject('${sData.id}', '${sData.name}')" class="text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen"></i></button><button onclick="window.deleteSpecSubject('${sData.id}')" class="text-red-400 hover:text-red-600"><i class="fa-solid fa-trash"></i></button></td></tr>`; }); 
+				const section = document.createElement('div'); section.className = "bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col"; 
+				section.innerHTML = `<div class="bg-slate-100 p-3 border-b flex justify-between items-center"><h5 class="font-bold text-teal-800 flex items-center gap-2"><input type="color" value="${cat.color || '#f1f5f9'}" class="w-6 h-6 border-0 p-0 rounded cursor-pointer shrink-0" onchange="window.updateSpecCategoryColor('${cat.id}', this.value)" title="Змінити колір">${cat.name}</h5><div class="flex gap-2"><button onclick="window.editSpecCategory('${cat.id}', '${cat.name}')" class="text-blue-500 text-xs bg-white px-2 py-1 rounded shadow-sm">Редагувати</button><button onclick="window.deleteSpecCategory('${cat.id}')" class="text-red-500 text-xs bg-white px-2 py-1 rounded shadow-sm">Видалити</button></div></div><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-slate-600 text-xs uppercase"><tr><th class="p-2 w-12 text-center">№</th><th class="p-2">Предмет</th><th class="p-2 w-24 text-center">Поділ</th><th class="p-2 text-right w-32">Дія</th></tr></thead><tbody>${tbodyHtml}</tbody></table><div class="p-3 bg-slate-50"><form onsubmit="window.addSpecSubject(event, '${cat.id}')" class="flex gap-2 w-3/4"><input type="text" id="input-spec-${cat.id}" required placeholder="Назва спецпредмету..." class="flex-1 p-1.5 border rounded outline-none focus:border-teal-500"><button type="submit" class="bg-teal-600 text-white px-4 py-1.5 rounded text-sm">Додати</button></form></div>`; 
+				container.appendChild(section); 
+			}); 
+		}
+    </script>
+	<!-- МОДАЛКА: Налаштування реквізитів (Суперадмін) -->
+    <div id="sa-banks-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[600] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg border border-slate-200 max-h-[90vh] overflow-y-auto relative">
+            <button onclick="document.getElementById('sa-banks-modal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <h3 class="text-xl font-bold text-slate-800 mb-4"><i class="fa-solid fa-building-columns text-indigo-500 mr-2"></i>Банківські реквізити</h3>
+            
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Вартість ліцензії на 1 рік (грн)</label>
+                <div class="flex gap-2">
+                    <input type="number" id="sa-annual-cost" class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500">
+                    <button id="btn-save-cost" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg font-bold shadow-sm">Зберегти</button>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 pt-4 mb-4">
+                <h4 class="text-sm font-bold text-slate-700 mb-2">Додати банк</h4>
+                <div class="space-y-2">
+                    <input type="text" id="sa-bank-name" placeholder="Назва (напр. ПриватБанк)" class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none">
+                    <input type="text" id="sa-bank-link" placeholder="Посилання на оплату (URL)" class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none">
+                    <input type="text" id="sa-bank-qr" placeholder="URL зображення QR-коду" class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none">
+                    <button id="btn-add-bank" class="w-full bg-teal-600 hover:bg-teal-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm">Додати банк</button>
+                </div>
+            </div>
+            <div id="sa-banks-list" class="space-y-2 border-t border-slate-200 pt-4"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА: Керування ліцензією та квитанціями (Суперадмін) -->
+    <div id="sa-license-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[600] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200">
+            <button onclick="document.getElementById('sa-license-modal').classList.add('hidden')" class="float-right text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <h3 class="text-xl font-bold text-slate-800 mb-4" id="sa-lic-manage-title">Керування ліцензією</h3>
+            
+            <div id="sa-receipt-section" class="mb-4 hidden bg-orange-50 p-4 rounded-xl border border-orange-200">
+                <h4 class="font-bold text-orange-800 text-sm mb-2"><i class="fa-solid fa-file-invoice-dollar mr-1"></i>Нова квитанція на перевірці!</h4>
+                
+                <!-- Контейнер для відображення фото, PDF або посилання -->
+                <div id="sa-receipt-container" class="mb-2"></div>
+
+                <div class="flex gap-2 mt-3">
+                    <button id="btn-approve-receipt" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold text-sm shadow-sm">Активувати (+1 рік)</button>
+                    <button id="btn-reject-receipt" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold text-sm shadow-sm">Відхилити</button>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 pt-4">
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Ручне встановлення дати (До якої діє)</label>
+                <div class="flex gap-2">
+                    <input type="date" id="sa-manual-date" class="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none">
+                    <button id="btn-save-manual-date" class="bg-indigo-600 text-white px-4 rounded-lg font-bold text-sm shadow-sm">Встановити</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА: Фрейм оплати (Адмін) -->
+    <div id="payment-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[600] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center border border-slate-200 relative">
+            <button onclick="document.getElementById('payment-modal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <h3 class="text-xl font-bold text-slate-800 mb-2" id="pay-bank-name">Оплата</h3>
+            <div class="mb-4 p-2 bg-slate-50 rounded-lg inline-block border border-slate-200">
+                <img id="pay-bank-qr" src="" alt="QR" class="w-48 h-48 object-contain">
+            </div>
+            <a id="pay-bank-link" href="#" target="_blank" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mb-6 shadow-sm"><i class="fa-solid fa-link mr-2"></i>Перейти до оплати</a>
+            
+            <div class="border-t border-slate-200 pt-4 text-left">
+                <label class="block text-xs font-bold text-slate-700 mb-2">Надати квитанцію (посилання або файл)</label>
+                
+                <input type="url" id="pay-receipt-link" placeholder="Вставте посилання на квитанцію..." class="w-full p-2 border border-slate-300 rounded-lg text-sm mb-2 outline-none focus:border-indigo-500">
+                
+                <div class="text-center text-xs text-slate-400 mb-2">- АБО ЗАТАВАНТАЖИТИ ФАЙЛ -</div>
+                
+                <input type="file" id="pay-receipt-file" accept="image/*,application/pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 mb-2">
+                <p class="text-[10px] text-slate-400 mb-3">Підтримуються зображення та PDF (макс. 1 МБ)</p>
+
+                <button id="btn-send-receipt" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 rounded-lg text-sm shadow-sm hidden transition-all">Надіслати на перевірку</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

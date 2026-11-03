@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        body { background: transparent; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        
+        .print-hide { display: block; }
+        #print-container { display: none; }
+
+        @media print { 
+            @page { size: portrait; margin: 10mm; }
+            
+            html, body { 
+                height: auto !important; 
+                max-height: none !important; 
+                overflow: visible !important; 
+                display: block !important;
+                background: white !important; 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                font-family: 'Times New Roman', Times, serif !important;
+            }
+            
+            .print-hide { display: none !important; } 
+            
+            #print-container { 
+                display: block !important; 
+                position: static !important; 
+                top: auto !important;
+                left: auto !important;
+                width: 100% !important;
+                padding: 0 !important;
+            }
+            
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+            th, td { border: 1px solid #000; padding: 6px; text-align: center; vertical-align: middle; }
+            th { font-weight: bold; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden font-sans text-slate-800">
+
+    <div class="px-4 flex justify-between items-center text-sm font-medium text-slate-500 shrink-0 border-b border-slate-200 pb-2 print-hide bg-white/50 pt-2 rounded-t-xl">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center bg-white border border-slate-300 rounded-lg overflow-hidden shadow-sm h-[36px]">
+                <div class="bg-slate-100 px-3 py-1 border-r border-slate-300 font-bold text-slate-700 h-full flex items-center text-sm">Дата:</div>
+                <input type="date" id="date-input" class="px-3 py-1 outline-none cursor-pointer text-indigo-700 font-bold h-full text-sm">
+            </div>
+            
+            <div class="flex items-center bg-indigo-50 border border-indigo-200 rounded-lg overflow-hidden shadow-sm h-[36px]">
+                <div class="bg-indigo-100 px-3 py-1 border-r border-indigo-200 font-bold text-indigo-800 h-full flex items-center text-sm">Період:</div>
+                <div id="detected-period" class="px-3 py-1 text-indigo-700 font-bold text-sm bg-white min-w-[200px] flex items-center h-full">
+                    Очікування...
+                </div>
+            </div>
+        </div>
+        <div>
+            <button onclick="document.getElementById('print-modal').classList.remove('hidden')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors border border-slate-700 font-bold flex items-center gap-2 text-sm"><i class="fa-solid fa-print"></i>Меню друку / Картинка</button>
+        </div>
+    </div>
+
+    <div class="flex-1 flex overflow-hidden w-full relative print-hide">
+        <div class="w-1/4 min-w-[260px] bg-white border-r border-slate-200 flex flex-col">
+            <div class="p-2.5 px-3 bg-slate-50 border-b border-slate-200 font-bold text-slate-800 shadow-sm z-10 text-sm"><i class="fa-solid fa-user-xmark mr-2 text-red-500"></i>Відсутній викладач</div>
+            <div class="p-2 border-b border-slate-100 relative">
+                <i class="fa-solid fa-search absolute left-4 top-4 text-slate-400 text-sm"></i>
+                <input type="text" id="absent-search" placeholder="Пошук..." class="w-full pl-8 pr-2 py-1.5 border border-slate-300 rounded outline-none focus:border-indigo-500 text-sm">
+            </div>
+            <div id="absent-list" class="flex-1 overflow-auto divide-y divide-slate-100 bg-white"></div>
+        </div>
+
+        <div class="w-1/3 min-w-[340px] bg-slate-50 flex flex-col border-r border-slate-200">
+            <div class="p-2.5 px-3 bg-slate-100 border-b border-slate-200 font-bold text-slate-800 shadow-sm z-10 text-sm" id="absent-lessons-title"><i class="fa-solid fa-list-check mr-2 text-indigo-500"></i>Уроки за розкладом</div>
+            <div id="absent-lessons-list" class="flex-1 overflow-auto p-2 space-y-2">
+                <div class="text-center text-slate-500 mt-10 text-sm italic">Оберіть відсутнього викладача ліворуч</div>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-white flex flex-col">
+            <div class="p-2.5 px-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-900 shadow-sm z-10 flex justify-between items-center text-sm">
+                <span><i class="fa-solid fa-book-bookmark mr-2"></i>Журнал замін (на поточну дату)</span>
+            </div>
+            <div id="substitutions-list" class="flex-1 overflow-auto p-2 space-y-2 bg-slate-50/50"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ЛАНЦЮЖКОВОЇ ЗАМІНИ -->
+    <div id="sub-modal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 print-hide">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b bg-indigo-50 font-bold text-indigo-900 shrink-0 text-base"><i class="fa-solid fa-people-arrows mr-2"></i>Призначення заміни</div>
+            
+            <div id="sub-chain-container" class="flex-1 overflow-y-auto p-4 pb-2 scroll-smooth relative">
+                <!-- Динамічні кроки будуть тут -->
+            </div>
+            
+            <div class="p-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
+                <button onclick="document.getElementById('sub-modal').classList.add('hidden')" class="px-5 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors">Скасувати</button>
+                <button id="btn-save-sub" class="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm">Зберегти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ГЛОБАЛЬНИЙ ВИПАДАЮЧИЙ СПИСОК ВИКЛАДАЧІВ (Усуває проблему з overflow) -->
+    <div id="zamina-teacher-dropdown" class="fixed hidden bg-white border border-slate-300 shadow-2xl z-[500] rounded-xl flex flex-col text-sm overflow-hidden py-1 max-w-sm w-full">
+        <div id="zamina-teacher-list" class="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white"></div>
+    </div>
+
+    <!-- МОДАЛКА ДРУКУ -->
+    <div id="print-modal" class="fixed inset-0 bg-slate-900/60 hidden z-[100] flex items-center justify-center p-4 print-hide">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div class="p-4 border-b bg-slate-100 font-bold text-slate-800 text-base flex justify-between items-center">
+                <span><i class="fa-solid fa-print mr-2"></i>Друк та Експорт</span>
+                <button onclick="document.getElementById('print-modal').classList.add('hidden')" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Дата З:</label>
+                        <input type="date" id="print-date-start" class="w-full p-2 border border-slate-300 rounded text-sm outline-none font-bold text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Дата ПО:</label>
+                        <input type="date" id="print-date-end" class="w-full p-2 border border-slate-300 rounded text-sm outline-none font-bold text-slate-700">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Тип документу (Для друку):</label>
+                    <select id="print-type" class="w-full p-2 border border-slate-300 rounded text-sm outline-none font-bold text-slate-800 bg-slate-50 cursor-pointer">
+                        <option value="formal">Друк замін (Офіційний бланк)</option>
+                        <option value="log_all">Журнал: Всі заміни</option>
+                        <option value="log_subject">Журнал: Тільки заміна уроків (предмета)</option>
+                        <option value="log_teacher">Журнал: Тільки заміна викладача</option>
+                        <option value="log_cancel">Журнал: Зняті уроки</option>
+                    </select>
+                </div>
+                
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 items-center">
+                <button onclick="window.copyImage()" class="mr-auto px-4 py-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-bold hover:bg-blue-200 transition-colors shadow-sm"><i class="fa-solid fa-copy mr-2"></i>Як Картинку</button>
+                <button onclick="window.executePrint()" class="px-6 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-colors shadow-sm"><i class="fa-solid fa-print mr-2"></i>Друкувати</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="print-container"></div>
+
+    <script type="module">
+        const p = window.parent;
+        
+        let currentDateStr = '';
+        let currentRIdx = null;
+        let currentWIdx = null;
+        let selectedAbsentId = null;
+        let allTeachers = [];
+        let dailyGrid = null; 
+        
+        window.cachedTeacherBalances = null;
+        window.teacherDropdownHTMLs = {};
+
+        let substitutionChain = [];
+
+        const dateInput = document.getElementById('date-input');
+        let savedDate = localStorage.getItem('fignia_zamina_date');
+        if (savedDate) { dateInput.value = savedDate; } 
+        else { dateInput.valueAsDate = new Date(); }
+        currentDateStr = dateInput.value;
+
+        window.onDataUpdated = function() {
+            if(!p.teachersData || p.teachersData.length === 0) return;
+            allTeachers = p.teachersData;
+            
+            document.getElementById('print-date-start').value = currentDateStr;
+            document.getElementById('print-date-end').value = currentDateStr;
+            
+            processDateChange();
+        };
+
+        dateInput.addEventListener('change', (e) => { 
+            currentDateStr = e.target.value; 
+            localStorage.setItem('fignia_zamina_date', currentDateStr);
+            document.getElementById('print-date-start').value = currentDateStr;
+            document.getElementById('print-date-end').value = currentDateStr;
+            processDateChange();
+        });
+
+        document.getElementById('absent-search').addEventListener('input', (e) => { 
+            renderAbsentList(e.target.value.toLowerCase()); 
+        });
+
+        // Закриття глобального дропдауну при кліку поза ним
+        document.addEventListener('click', function(e) {
+            const zDropdown = document.getElementById('zamina-teacher-dropdown');
+            if (zDropdown && !e.target.closest('.zamina-teacher-selector') && !zDropdown.contains(e.target)) {
+                zDropdown.classList.add('hidden');
+            }
+        });
+
+        function processDateChange() {
+            let detected = detectActiveSchedule(currentDateStr);
+            let periodEl = document.getElementById('detected-period');
+            
+            if (!detected) {
+                currentRIdx = null; currentWIdx = null; dailyGrid = null;
+                periodEl.innerHTML = '<span class="text-red-500">Поза навчальним періодом</span>';
+                document.getElementById('absent-lessons-list').innerHTML = '<div class="text-center text-red-500 mt-10 text-sm font-bold"><i class="fa-solid fa-calendar-xmark text-3xl mb-2 block"></i>Обрана дата не входить у семестр.</div>';
+                document.getElementById('absent-list').innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">Виберіть робочий день.</div>';
+            } else {
+                currentRIdx = detected.rIdx;
+                currentWIdx = detected.wIndex;
+                periodEl.innerHTML = `${detected.blockName} (Тиждень ${detected.weekNum})`;
+                
+                let tDate = new Date(currentDateStr);
+                let dIdx = tDate.getDay() - 1; // 0:Пн, 1:Вт, 2:Ср, 3:Чт, 4:Пт, 5:Сб, -1:Нд
+                
+                // Отримуємо кількість робочих днів з налаштувань (5 або 6)
+                let wDays = parseInt(p.generalSettings?.workDays) || 5;
+                let maxDIdx = wDays - 1; 
+                
+                if (dIdx < 0 || dIdx > maxDIdx) {
+                    let dName = dIdx === -1 ? 'Неділя' : 'Субота';
+                    dailyGrid = null;
+                    document.getElementById('absent-lessons-list').innerHTML = `<div class="text-center text-slate-500 mt-10 text-sm italic"><i class="fa-solid fa-mug-hot text-3xl mb-2 block"></i>${dName} — вихідний день.</div>`;
+                    document.getElementById('absent-list').innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">Виберіть робочий день.</div>';
+                } else {
+                    dailyGrid = buildRegGridForDay(currentRIdx, dIdx, currentWIdx); 
+                    renderAbsentList(document.getElementById('absent-search').value.toLowerCase());
+                    if (selectedAbsentId) renderAbsentLessons();
+                    else document.getElementById('absent-lessons-list').innerHTML = '<div class="text-center text-slate-500 mt-10 text-sm italic">Оберіть відсутнього викладача ліворуч</div>';
+                }
+            }
+            renderSubstitutions();
+        }
+
+        function renderAbsentList(filter = '') {
+            if (!dailyGrid) {
+                document.getElementById('absent-list').innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">Немає розкладу на цю дату.</div>';
+                return;
+            }
+
+            let teachersWithLessons = new Set();
+            for (let gId in dailyGrid) {
+                for (let l = 1; l <= 8; l++) {
+                    if (dailyGrid[gId][l] && dailyGrid[gId][l].activeTeachers) {
+                        dailyGrid[gId][l].activeTeachers.forEach(t => teachersWithLessons.add(t.id));
+                    }
+                }
+            }
+
+            let html = '';
+            let count = 0;
+            allTeachers.forEach(t => {
+                if (!teachersWithLessons.has(t.id)) return; 
+                if (filter && !t.name.toLowerCase().includes(filter)) return;
+                count++;
+                let activeClass = t.id === selectedAbsentId ? 'bg-red-50 border-l-4 border-red-500' : 'hover:bg-slate-50 border-l-4 border-transparent';
+                html += `<div class="p-2 cursor-pointer transition-all ${activeClass}" onclick="window.selectAbsent('${t.id}')">
+                    <div class="font-bold text-sm text-slate-800">${t.name}</div>
+                    <div class="text-xs text-slate-500 uppercase">${t.position}</div>
+                </div>`;
+            });
+            
+            if (count === 0) {
+                html = '<div class="p-4 text-center text-slate-500 text-sm">Не знайдено викладачів з уроками.</div>';
+            }
+            document.getElementById('absent-list').innerHTML = html;
+        }
+
+        window.selectAbsent = function(tId) {
+            selectedAbsentId = tId;
+            renderAbsentList(document.getElementById('absent-search').value.toLowerCase());
+            renderAbsentLessons();
+        };
+
+        function getRozkladBlocks(groupId) {
+            let eData = p.ekranData[groupId] || { rozklads: [] };
+            let rozklads = eData.rozklads || [];
+            let currDate = p.generalSettings.sem1Start ? new Date(p.generalSettings.sem1Start) : null;
+            let sem1EndDate = p.generalSettings.sem1End ? new Date(p.generalSettings.sem1End) : null;
+            let sem2StartDate = p.generalSettings.sem2Start ? new Date(p.generalSettings.sem2Start) : null;
+            let sem2EndDate = p.generalSettings.sem2End ? new Date(p.generalSettings.sem2End) : null;
+            
+            let blocks = []; let globalIdx = 0;
+            rozklads.forEach((r, rIdx) => {
+                let block = { rId: r.id, name: r.name || ('Розклад ' + (rIdx+1)), weeks: [], cols: r.cols, rIdx: rIdx };
+                let wNum = 1;
+                r.cols.forEach(col => {
+                    let wCount = parseFloat(col.weeks) || 0;
+                    for(let i=0; i<wCount; i++) {
+                        let weekStart = currDate ? new Date(currDate) : null;
+                        let weekEnd = null;
+
+                        if (weekStart) {
+                            weekEnd = new Date(weekStart);
+                            while (weekEnd.getDay() !== 5 && weekEnd.getDay() !== 0) { weekEnd.setDate(weekEnd.getDate() + 1); }
+                            if (sem1EndDate && weekStart.getTime() <= sem1EndDate.getTime() && weekEnd.getTime() > sem1EndDate.getTime()) weekEnd = new Date(sem1EndDate);
+                            else if (sem2EndDate && weekStart.getTime() <= sem2EndDate.getTime() && weekEnd.getTime() > sem2EndDate.getTime()) weekEnd = new Date(sem2EndDate);
+                        }
+
+                        let sTime = weekStart ? new Date(weekStart).setHours(0,0,0,0) : 0;
+                        let eTimeObj = weekEnd ? new Date(weekEnd) : null;
+                        if (eTimeObj) { if (eTimeObj.getDay() === 5) eTimeObj.setDate(eTimeObj.getDate() + 2); }
+                        let eTime = eTimeObj ? eTimeObj.setHours(23,59,59,999) : 0;
+
+                        block.weeks.push({ globalIndex: globalIdx++, weekNum: wNum++, sTime: sTime, eTime: eTime });
+                        
+                        if (weekEnd) {
+                            if (sem1EndDate && sem2StartDate && weekEnd.getTime() >= sem1EndDate.getTime() && weekStart.getTime() <= sem1EndDate.getTime()) currDate = new Date(sem2StartDate);
+                            else { currDate = new Date(weekEnd); currDate.setDate(currDate.getDate() + 1); while (currDate.getDay() !== 1) currDate.setDate(currDate.getDate() + 1); }
+                        }
+                    }
+                });
+                blocks.push(block);
+            });
+            return blocks;
+        }
+
+        function detectActiveSchedule(dateStr) {
+            if (!p.groupsData || p.groupsData.length === 0) return null;
+            let tDate = new Date(dateStr); tDate.setHours(12, 0, 0, 0); let targetTime = tDate.getTime();
+            let blocks = getRozkladBlocks(p.groupsData[0].id);
+            for (let b of blocks) {
+                for (let w of b.weeks) { if (targetTime >= w.sTime && targetTime <= w.eTime) return { rIdx: b.rIdx, wIndex: w.globalIndex, blockName: b.name, weekNum: w.weekNum }; }
+            }
+            return null; 
+        }
+
+        function getWeekIndexForDateLocal(groupId, targetDateObj) {
+            let tDate = new Date(targetDateObj); tDate.setHours(12, 0, 0, 0); let targetTime = tDate.getTime();
+            let blocks = getRozkladBlocks(groupId);
+            for (let b of blocks) {
+                for (let w of b.weeks) { if (targetTime >= w.sTime && targetTime <= w.eTime) return w.globalIndex; }
+            }
+            return null;
+        }
+
+        function getLastName(fullName) { return fullName ? fullName.trim().split(' ')[0] : ''; }
+        
+        function getSubjName(id) {
+            if (!id) return '';
+            
+            if (id.startsWith('gen_')) { 
+                if (id.includes('STATIC_consult')) return 'Консультації';
+                if (id.includes('STATIC_exams')) return 'Екзамени';
+                
+                let core = id.replace('gen_', '').replace('_split', ''); 
+                let s = p.genSubjectsData.find(x => x.id === core); 
+                return s ? s.name + (id.includes('_split') ? ' (підгр.)' : '') : id; 
+            }
+            
+            if (id.startsWith('spec_')) { 
+                if (id.includes('STATIC_pract')) return 'Виробнича практика'; 
+                if (id.includes('STATIC_navch')) return 'Виробниче навчання'; 
+                if (id.includes('STATIC_cons')) return 'Консультації';
+                if (id.includes('STATIC_dka')) return 'ДКА';
+                if (id.includes('STATIC_dpa')) return 'ДПА';
+                
+                let core = id.replace('spec_', '').replace('_main', '').replace('_split', ''); 
+                let s = p.specSubjectsAll.find(x => x.id === core); 
+                return s ? s.name + (id.includes('_split') ? ' (підгр.)' : '') : id; 
+            }
+            
+            return id;
+        }
+
+        function buildRegGridForDay(rIdx, dIdx, wIdx) {
+            let grid = {}; 
+            let rozkladObj = p.rozkladData[`rozklad_${rIdx}`] || {};
+            let operData = rozkladObj.oper || {};
+            let regData = rozkladObj.reg || {};
+
+            p.groupsData.forEach(g => {
+                let gNum = (g.num || g.name).toString(); let gName = g.name;
+                grid[g.id] = {};
+                let groupSubjects = [];
+                const addSubj = (sId, tId1, tId2) => { groupSubjects.push({ id: sId, teacherId: tId1, teacherId2: tId2 }); };
+                
+                if (g.education.includes('Базова')) { 
+                    p.genSubjectsData.forEach(subj => { 
+                        let tMain = p.workloadMap[`gen_${subj.id}_${g.id}`]?.teacherId; 
+                        let tSplit = subj.isSplit ? p.workloadMap[`gen_${subj.id}_split_${g.id}`]?.teacherId : null; 
+                        let tArr = [tMain, tSplit].filter(Boolean); 
+                        [...new Set(tArr)].forEach(tId => addSubj(`gen_${subj.id}`, tId, null)); 
+                    }); 
+                }
+                
+                p.specSubjectsAll.forEach(subj => { 
+                    let tMain1 = p.workloadMap[`spec_${subj.id}_main_${g.id}`]?.teacherId; 
+                    let tMain2 = p.workloadMap[`spec_${subj.id}_main_${g.id}`]?.teacherId2; 
+                    let tSplit1 = subj.isSplit ? p.workloadMap[`spec_${subj.id}_split_${g.id}`]?.teacherId : null; 
+                    let tSplit2 = subj.isSplit ? p.workloadMap[`spec_${subj.id}_split_${g.id}`]?.teacherId2 : null; 
+                    let tArr = [tMain1, tMain2, tSplit1, tSplit2].filter(Boolean); 
+                    [...new Set(tArr)].forEach(tId => addSubj(`spec_${subj.id}`, tId, null)); 
+                });
+
+                for(let l = 1; l <= 8; l++) {
+                    let tId = null; let activeTeachers = [];
+                    for (let t of p.teachersData) { 
+                        let val = operData[`${t.id}_${dIdx}_${l}`] || ""; 
+                        let grps = val.split(/[\/\,]/).map(s=>s.trim()).filter(Boolean); 
+                        if (grps.includes(gNum) || grps.includes(gName)) activeTeachers.push(t); 
+                    }
+                    
+                    let isVns = false;
+                    let vnsVal = operData[`vnsgrp_${g.id}_${dIdx}_${l}`] || ""; 
+                    let vnsGrps = vnsVal.split(/[\/\,]/).map(s=>s.trim()).filter(Boolean); 
+                    
+                    if (vnsGrps.includes(gNum) || vnsGrps.includes(gName)) {
+                        isVns = true;
+                        let m1 = p.workloadMap[`spec_STATIC_navch_${g.id}`]?.teacherId;
+                        let m2 = p.workloadMap[`spec_STATIC_navch_${g.id}`]?.teacherId2;
+                        
+                        if (m1) {
+                            let tObj = p.teachersData.find(t=>t.id===m1);
+                            if (tObj) activeTeachers.push(tObj);
+                        }
+                        if (m2) {
+                            let tObj = p.teachersData.find(t=>t.id===m2);
+                            if (tObj) activeTeachers.push(tObj);
+                        }
+                        tId = m1 || 'VNS';
+                    } else if (activeTeachers.length > 0) {
+                        tId = activeTeachers[0].id;
+                    }
+
+                    let cell = { tId, activeTeachers, subjId: null, subjName: '', room: regData[`room_${g.id}_${dIdx}_${l}`] || '' };
+                    
+                    if (isVns) {
+                        cell.subjName = 'Виробниче навчання'; 
+                        cell.subjId = 'spec_STATIC_navch';
+                    } else if (activeTeachers.length > 0) {
+                        // Перенесена логіка точного визначення предмета з розкладу
+                        let teacherSubjIds = activeTeachers.map(at => {
+                            return groupSubjects.filter(s => s.teacherId === at.id || s.teacherId2 === at.id).map(s => s.id);
+                        });
+                        
+                        let validSubjIds = [];
+                        if (activeTeachers.length > 1) {
+                            let commonSubjIds = teacherSubjIds[0].filter(id => teacherSubjIds.every(ts => ts.includes(id)));
+                            let singleSubjTeacher = teacherSubjIds.find(ts => ts.length === 1);
+                            
+                            if (singleSubjTeacher) {
+                                validSubjIds = singleSubjTeacher; 
+                            } else if (commonSubjIds.length > 0) {
+                                validSubjIds = commonSubjIds; 
+                            } else {
+                                validSubjIds = [...new Set(teacherSubjIds.flat())]; 
+                            }
+                        } else {
+                            validSubjIds = [...new Set(teacherSubjIds.flat())];
+                        }
+                        
+                        validSubjIds = [...new Set(validSubjIds)]; // Прибираємо дублікати
+                        let savedSubjId = regData[`subj_${g.id}_${dIdx}_${l}`];
+
+                        if (savedSubjId && validSubjIds.includes(savedSubjId)) { 
+                            cell.subjId = savedSubjId; 
+                            cell.subjName = getSubjName(savedSubjId); 
+                        } else if (validSubjIds.length === 1) { 
+                            cell.subjId = validSubjIds[0]; 
+                            cell.subjName = getSubjName(validSubjIds[0]); 
+                        }
+                    }
+
+                    if (cell.subjId && wIdx !== null) {
+                        let vData = p.vychytkaData[g.id]?.hours || {};
+                        let planStr = vData[`${cell.subjId}_w${wIdx}`]?.rozklad;
+                        let planH = (planStr !== undefined && planStr !== '') ? parseFloat(planStr) : 0;
+                        
+                        if (planH <= 0) {
+                            cell.tId = null;
+                            cell.subjId = null;
+                            cell.subjName = '';
+                            cell.activeTeachers = [];
+                        }
+                    }
+                    grid[g.id][l] = cell;
+                }
+            });
+            return grid;
+        }
+
+        function getTeacherGroupSubjects() {
+            let tgs = {}; 
+            p.groupsData.forEach(g => {
+                let groupSubjects = [];
+                const addSubj = (sId, tId1, tId2) => { groupSubjects.push({ id: sId, teacherId: tId1, teacherId2: tId2 }); };
+                
+                if (g.education.includes('Базова')) { 
+                    p.genSubjectsData.forEach(subj => { 
+                        let tMain = p.workloadMap[`gen_${subj.id}_${g.id}`]?.teacherId; 
+                        let tSplit = subj.isSplit ? p.workloadMap[`gen_${subj.id}_split_${g.id}`]?.teacherId : null; 
+                        let tArr = [tMain, tSplit].filter(Boolean); 
+                        [...new Set(tArr)].forEach(tId => addSubj(`gen_${subj.id}`, tId, null)); 
+                    }); 
+                }
+                
+                p.specSubjectsAll.forEach(subj => { 
+                    let tMain1 = p.workloadMap[`spec_${subj.id}_main_${g.id}`]?.teacherId; 
+                    let tMain2 = p.workloadMap[`spec_${subj.id}_main_${g.id}`]?.teacherId2; 
+                    let tSplit1 = subj.isSplit ? p.workloadMap[`spec_${subj.id}_split_${g.id}`]?.teacherId : null; 
+                    let tSplit2 = subj.isSplit ? p.workloadMap[`spec_${subj.id}_split_${g.id}`]?.teacherId2 : null; 
+                    let tArr = [tMain1, tMain2, tSplit1, tSplit2].filter(Boolean); 
+                    [...new Set(tArr)].forEach(tId => addSubj(`spec_${subj.id}`, tId, null)); 
+                });
+
+                let allStaticKeys = ['STATIC_pract', 'STATIC_navch', 'STATIC_cons', 'STATIC_dpa'];
+                for (let key in p.workloadMap) {
+                    if (key.startsWith('spec_STATIC_dka_') && key.endsWith(`_${g.id}`)) {
+                        let coreKey = key.replace('spec_', '').replace(`_${g.id}`, '');
+                        if (!allStaticKeys.includes(coreKey)) allStaticKeys.push(coreKey);
+                    }
+                }
+                
+                allStaticKeys.forEach(sId => {
+                    let h = parseFloat(p.workloadMap[`spec_${sId}_${g.id}`]?.hours || 0) || 0;
+                    if (h > 0) {
+                        let tM1 = p.workloadMap[`spec_${sId}_${g.id}`]?.teacherId;
+                        let tM2 = p.workloadMap[`spec_${sId}_${g.id}`]?.teacherId2;
+                        let tArr = [tM1, tM2].filter(Boolean);
+                        [...new Set(tArr)].forEach(tId => addSubj(`spec_${sId}`, tId, null));
+                    }
+                });
+
+                groupSubjects.forEach(s => {
+                    [s.teacherId, s.teacherId2].filter(Boolean).forEach(tId => {
+                        if (!tgs[tId]) tgs[tId] = {};
+                        if (!tgs[tId][g.id]) tgs[tId][g.id] = new Set();
+                        tgs[tId][g.id].add(s.id);
+                    });
+                });
+            });
+            return tgs;
+        }
+
+        // --- ПІДРАХУНОК БАЛАНСУ ВИКЛАДАЧІВ ДЛЯ ПОТОЧНОЇ ГРУПИ ---
+        function calculateTeacherBalances(groupId) {
+            let balance = {};
+            allTeachers.forEach(t => balance[t.id] = { plan: 0, executed: 0 });
+            
+            let g = p.groupsData.find(x => x.id === groupId);
+            if (!g) return {};
+            
+            let blocks = getRozkladBlocks(groupId);
+            let vData = p.vychytkaData[groupId]?.hours || {};
+            
+            let subjs = [];
+            const add = (sId, t1, t2, ph) => { 
+                if (ph > 0) subjs.push({ id: sId, teachers: [t1, t2].filter(Boolean), plan: ph }); 
+            };
+            
+            if (g.education.includes('Базова')) {
+                p.genSubjectsData.forEach(subj => {
+                    let ph = parseFloat(p.workloadMap[`gen_${subj.id}_${groupId}`]?.hours) || 0;
+                    let t1 = p.workloadMap[`gen_${subj.id}_${groupId}`]?.teacherId;
+                    let t2 = subj.isSplit ? p.workloadMap[`gen_${subj.id}_split_${groupId}`]?.teacherId : null;
+                    add(`gen_${subj.id}`, t1, t2, ph);
+                });
+                ['STATIC_consult', 'STATIC_exams'].forEach(sId => {
+                    let ph = parseFloat(p.workloadMap[`gen_${sId}_${groupId}`]?.hours) || 0;
+                    add(`gen_${sId}`, p.workloadMap[`gen_${sId}_${groupId}`]?.teacherId, null, ph);
+                });
+            }
+            
+            p.specSubjectsAll.forEach(subj => {
+                let ph = parseFloat(p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.hours) || 0;
+                let t1 = p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.teacherId;
+                let t2 = p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.teacherId2;
+                add(`spec_${subj.id}`, t1, t2, ph);
+            });
+            
+            let allStaticKeys = ['STATIC_pract', 'STATIC_navch', 'STATIC_cons', 'STATIC_dpa'];
+            for (let key in p.workloadMap) {
+                if (key.startsWith('spec_STATIC_dka_') && key.endsWith(`_${groupId}`)) {
+                    let coreKey = key.replace('spec_', '').replace(`_${groupId}`, '');
+                    if (!allStaticKeys.includes(coreKey)) allStaticKeys.push(coreKey);
+                }
+            }
+            
+            allStaticKeys.forEach(sId => {
+                let ph = parseFloat(p.workloadMap[`spec_${sId}_${groupId}`]?.hours) || 0;
+                let t1 = p.workloadMap[`spec_${sId}_${groupId}`]?.teacherId;
+                let t2 = p.workloadMap[`spec_${sId}_${groupId}`]?.teacherId2;
+                add(`spec_${sId}`, t1, t2, ph);
+            });
+            
+            subjs.forEach(s => {
+                let executed = 0;
+                blocks.forEach(b => {
+                    b.weeks.forEach(w => {
+                        let cellData = vData[`${s.id}_w${w.globalIndex}`] || {};
+                        let zStr = cellData.zamina;
+                        let rStr = cellData.rozklad;
+                        let val = (zStr !== undefined && zStr !== '') ? parseFloat(zStr) : (parseFloat(rStr) || 0);
+                        executed += val;
+                    });
+                });
+                
+                let uniqueTeachers = [...new Set(s.teachers)];
+                uniqueTeachers.forEach(tId => {
+                    if (balance[tId]) {
+                        balance[tId].plan += s.plan;
+                        balance[tId].executed += executed;
+                    }
+                });
+            });
+            
+            let result = {};
+            for (let tId in balance) {
+                // Від'ємне значення = недочитка (план більший за факт)
+                // Додатнє значення = перечитка (факт більший за план)
+                result[tId] = balance[tId].executed - balance[tId].plan; 
+            }
+            return result;
+        }
+
+        function formatSubstituteNameFull(type, item, substituteTId) {
+            if (type === 'cancel') return '— Знято —';
+            
+            let nSId = type === 'teacher_only' ? item.oldSubjId : item.newSubjId;
+            let gId = item.groupId;
+            let t1 = null, t2 = null;
+            
+            if (nSId.startsWith('gen_')) {
+                let core = nSId.replace('gen_', '');
+                t1 = p.workloadMap[`gen_${core}_${gId}`]?.teacherId;
+                t2 = p.workloadMap[`gen_${core}_split_${gId}`]?.teacherId;
+            } else if (nSId.startsWith('spec_')) {
+                let core = nSId.replace('spec_', '');
+                if (core.startsWith('STATIC_')) {
+                    let rec = p.workloadMap[`spec_${core}_${gId}`];
+                    if (rec) {
+                        t1 = rec.teacherId;
+                        t2 = rec.teacherId2;
+                    }
+                } else {
+                    let mRec = p.workloadMap[`spec_${core}_main_${gId}`];
+                    let sRec = p.workloadMap[`spec_${core}_split_${gId}`];
+                    if (sRec && sRec.teacherId) { t1 = mRec?.teacherId; t2 = sRec?.teacherId; } 
+                    else if (mRec && mRec.teacherId2) { t1 = mRec.teacherId; t2 = mRec.teacherId2; }
+                }
+            }
+            
+            let names = [];
+            
+            if (type === 'teacher_only') {
+                let oldNamesStr = item.oldTeacherName || '';
+                let newTL = allTeachers.find(t=>t.id===substituteTId)?.name || '';
+                let oldTL = allTeachers.find(t=>t.id===item.oldTeacherId)?.name || '';
+                
+                let nArr = oldNamesStr.split(' / ').map(n => n === oldTL ? newTL : n);
+                if (!nArr.includes(newTL)) nArr.push(newTL);
+                return nArr.join(' / ');
+            } else {
+                if (t1) names.push(allTeachers.find(t=>t.id===t1)?.name || '');
+                if (t2 && t2 !== t1) names.push(allTeachers.find(t=>t.id===t2)?.name || '');
+                let newTL = allTeachers.find(t=>t.id===substituteTId)?.name || '';
+                if (!names.includes(newTL)) names.unshift(newTL);
+                return names.join(' / ');
+            }
+        }
+
+        function getUkrDateString(dateStr) {
+            if (!dateStr) return '';
+            let d = new Date(dateStr);
+            if (isNaN(d)) return dateStr;
+            const months = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} року`;
+        }
+
+        function getUkrDayName(dateStr) {
+            if (!dateStr) return '';
+            let d = new Date(dateStr);
+            if (isNaN(d)) return '';
+            const daysAccusative = ['на неділю', 'на понеділок', 'на вівторок', 'на середу', 'на четвер', 'на п\'ятницю', 'на суботу'];
+            return daysAccusative[d.getDay()];
+        }
+
+        function renderAbsentLessons() {
+            const container = document.getElementById('absent-lessons-list');
+            if (!selectedAbsentId || !currentDateStr || !dailyGrid) return;
+            
+            let tObj = allTeachers.find(t => t.id === selectedAbsentId);
+            document.getElementById('absent-lessons-title').innerHTML = `<i class="fa-solid fa-list-check mr-2 text-indigo-500"></i>Уроки: ${tObj ? getLastName(tObj.name) : ''}`;
+
+            let lessons = [];
+            let todaySubs = p.zaminyData[currentDateStr]?.records || {};
+            let replacedLessonKeys = new Set();
+            for (let k in todaySubs) {
+				if (!todaySubs[k]) continue; // Додано захист від null
+                if (todaySubs[k].oldTeacherId === selectedAbsentId) replacedLessonKeys.add(`${todaySubs[k].groupId}_${todaySubs[k].lessonNum}`);
+            }
+
+            p.groupsData.forEach(g => {
+                for(let l=1; l<=8; l++) {
+                    let cell = dailyGrid[g.id][l];
+                    if (cell && cell.activeTeachers && cell.activeTeachers.some(t => t.id === selectedAbsentId) && cell.subjId) {
+                        if (replacedLessonKeys.has(`${g.id}_${l}`)) continue; 
+                        lessons.push({ groupId: g.id, groupNum: g.num || g.name, lessonNum: l, subjId: cell.subjId, subjName: cell.subjName, room: cell.room });
+                    }
+                }
+            });
+
+            if (lessons.length === 0) {
+                container.innerHTML = '<div class="text-center text-green-600 font-bold mt-10 text-sm"><i class="fa-solid fa-check-circle text-3xl mb-3 block"></i>Немає уроків за розкладом на цей день (або всі вже замінено).</div>';
+                return;
+            }
+
+            lessons.sort((a,b) => a.lessonNum - b.lessonNum);
+            let html = '';
+            lessons.forEach(ls => {
+                html += `<div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center hover:border-indigo-300 transition-colors">
+                    <div class="truncate mr-2">
+                        <div class="flex items-center gap-1.5 mb-1">
+                            <span class="bg-indigo-100 text-indigo-800 font-bold text-xs px-1.5 py-0.5 rounded">Ур. ${ls.lessonNum}</span>
+                            <span class="font-bold text-slate-800 text-sm">Гр. ${ls.groupNum}</span>
+                        </div>
+                        <div class="text-xs text-red-600 font-bold leading-tight mt-1 truncate max-w-[200px]" title="${ls.subjName}">${ls.subjName}</div>
+                    </div>
+                    <button onclick="window.initSubstitutionChain('${ls.groupId}', '${ls.groupNum}', ${ls.lessonNum}, '${ls.subjId}', '${ls.subjName.replace(/'/g, "\\'")}', '${ls.room}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded text-xs font-bold transition-colors border border-indigo-200 shrink-0">Замінити</button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        window.initSubstitutionChain = function(groupId, groupNum, lessonNum, subjId, subjName, room) {
+            if (currentWIdx === null) return;
+            
+            // Кешуємо баланси вчителів ТІЛЬКИ ДЛЯ ЦІЄЇ ГРУПИ
+            window.cachedTeacherBalances = calculateTeacherBalances(groupId);
+            
+            substitutionChain = [{
+                level: 0,
+                groupId: groupId,
+                groupNum: groupNum,
+                lessonNum: lessonNum,
+                room: room || '',
+                oldTeacherId: selectedAbsentId,
+                oldTeacherName: allTeachers.find(t=>t.id===selectedAbsentId)?.name || '',
+                oldSubjId: subjId,
+                oldSubjName: subjName,
+                newTeacherId: '',
+                newSubjId: '',
+                showAllTeachers: false
+            }];
+
+            renderSubChain();
+            document.getElementById('sub-modal').classList.remove('hidden');
+        };
+
+        window.toggleShowAllTeachers = function(level, isChecked) {
+            substitutionChain[level].showAllTeachers = isChecked;
+            renderSubChain();
+        };
+
+        window.openZaminaTeacherDropdown = function(index, el) {
+            let dropdown = document.getElementById('zamina-teacher-dropdown');
+            if (!dropdown.classList.contains('hidden')) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+            
+            document.getElementById('zamina-teacher-list').innerHTML = window.teacherDropdownHTMLs[index];
+            
+            const rect = el.getBoundingClientRect();
+            dropdown.style.width = rect.width + 'px';
+            
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < 250 && rect.top > 250) {
+                dropdown.style.top = `${rect.top - dropdown.offsetHeight}px`; 
+            } else {
+                dropdown.style.top = `${rect.bottom + 4}px`;
+            }
+            dropdown.style.left = `${rect.left}px`;
+            
+            dropdown.classList.remove('hidden');
+        };
+
+        window.renderSubChain = function() {
+            let html = '';
+            let tgs = getTeacherGroupSubjects();
+            let container = document.getElementById('sub-chain-container');
+            let todaySubs = p.zaminyData[currentDateStr]?.records || {};
+
+            window.teacherDropdownHTMLs = {}; // Очищуємо кеш HTML для списків
+
+            substitutionChain.forEach((item, index) => {
+                
+                let busyIds = new Set();
+                for (let gId in dailyGrid) {
+                    let cell = dailyGrid[gId][item.lessonNum];
+                    let cTeachers = [];
+                    if (cell && cell.activeTeachers) cTeachers = cell.activeTeachers.map(t=>t.id);
+                    
+                    let finalTeachers = [...cTeachers];
+
+                    for (let k in todaySubs) {
+                        let sub = todaySubs[k];
+                        if (sub && sub.lessonNum === item.lessonNum && sub.groupId === gId) { // Додано sub &&
+                            if (sub.type === 'cancel') {
+                                finalTeachers = [];
+                            } else if (sub.newTeacherId) {
+                                finalTeachers = [sub.newTeacherId];
+                            }
+                        }
+                    }
+                    finalTeachers.forEach(tid => { if (tid !== 'VNS') busyIds.add(tid); });
+                }
+
+                for (let i = 0; i < index; i++) {
+                    let c = substitutionChain[i];
+                    if (c.lessonNum === item.lessonNum) {
+                        if (c.oldTeacherId) busyIds.delete(c.oldTeacherId);
+                        if (c.newTeacherId && c.newTeacherId !== 'CANCELLED') busyIds.add(c.newTeacherId);
+                    }
+                }
+
+                let involvedIds = new Set();
+                substitutionChain.forEach(c => {
+                    if (c.oldTeacherId) involvedIds.add(c.oldTeacherId);
+                    if (c.newTeacherId && c.newTeacherId !== 'CANCELLED') involvedIds.add(c.newTeacherId);
+                });
+
+                let validTeachersForGroup = new Set();
+                for (let tId in tgs) {
+                    if (tgs[tId][item.groupId] && tgs[tId][item.groupId].size > 0) {
+                        validTeachersForGroup.add(tId);
+                    }
+                }
+
+                let freeTeachers = [];
+                let busyTeachers = [];
+                
+                allTeachers.forEach(t => {
+                    if (t.id === item.oldTeacherId) return; 
+                    if (involvedIds.has(t.id) && t.id !== item.newTeacherId) return; 
+                    if (!item.showAllTeachers && !validTeachersForGroup.has(t.id)) return;
+
+                    if (busyIds.has(t.id)) busyTeachers.push(t);
+                    else freeTeachers.push(t);
+                });
+
+                // Сортування: від найбільшої недочитки (від'ємні числа) до найбільшої перечитки (додатні)
+                const sortLogic = (a, b) => {
+                    let balA = window.cachedTeacherBalances[a.id] || 0;
+                    let balB = window.cachedTeacherBalances[b.id] || 0;
+                    return balA - balB; 
+                };
+                freeTeachers.sort(sortLogic);
+                busyTeachers.sort(sortLogic);
+
+                // Отримуємо HTML для бейджа з балансом (вирівнюється по правому краю через ml-auto)
+                const getBalanceBadge = (tId) => {
+                    let diff = window.cachedTeacherBalances[tId] || 0;
+                    diff = Math.round(diff * 10) / 10;
+                    if (diff === 0) return `<span class="text-slate-500 font-bold text-xs bg-slate-100 px-2 py-0.5 rounded ml-auto shrink-0 border border-slate-200">0 год</span>`;
+                    if (diff < 0) return `<span class="text-red-600 font-bold text-xs bg-red-50 px-2 py-0.5 rounded ml-auto shrink-0 border border-red-200">${diff} год</span>`;
+                    return `<span class="text-blue-600 font-bold text-xs bg-blue-50 px-2 py-0.5 rounded ml-auto shrink-0 border border-blue-200">+${diff} год</span>`;
+                };
+
+                // Кастомний список HTML
+                let tHtmlItems = '';
+                
+                let isSelectedCancel = item.newTeacherId === 'CANCELLED';
+                tHtmlItems += `<div class="px-3 py-2 cursor-pointer border-b border-slate-100 hover:bg-red-50 flex items-center gap-2 ${isSelectedCancel ? 'bg-red-50' : ''}" onclick="window.onChangeNewTeacher(${index}, 'CANCELLED'); document.getElementById('zamina-teacher-dropdown').classList.add('hidden');">
+                    <span class="text-red-600 font-bold text-sm">❌ ЗНЯТТЯ УРОКУ (БЕЗ ЗАМІНИ)</span>
+                </div>`;
+
+                // ДОДАНО: Кнопка для вибору того ж самого викладача
+                let isSelectedSelf = item.newTeacherId === item.oldTeacherId;
+                tHtmlItems += `<div class="px-3 py-2 cursor-pointer border-b border-slate-100 hover:bg-emerald-50 flex items-center gap-2 ${isSelectedSelf ? 'bg-emerald-50' : ''}" onclick="window.onChangeNewTeacher(${index}, '${item.oldTeacherId}'); document.getElementById('zamina-teacher-dropdown').classList.add('hidden');">
+                    <span class="text-emerald-600 font-bold text-sm">🔄 ЦЕЙ ЖЕ ВИКЛАДАЧ (ІНШИЙ ПРЕДМЕТ)</span>
+                </div>`;
+                
+                if (freeTeachers.length > 0) {
+                    tHtmlItems += `<div class="px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0 z-10">✅ Вільні на цьому уроці</div>`;
+                    freeTeachers.forEach(t => { 
+                        let isSelected = t.id === item.newTeacherId;
+                        tHtmlItems += `<div class="px-3 py-2 cursor-pointer hover:bg-indigo-50 border-b border-slate-100 flex items-center transition-colors ${isSelected ? 'bg-indigo-50' : ''}" onclick="window.onChangeNewTeacher(${index}, '${t.id}'); document.getElementById('zamina-teacher-dropdown').classList.add('hidden');">
+                            <span class="font-medium text-slate-800 text-sm">${t.name}</span>
+                            ${getBalanceBadge(t.id)}
+                        </div>`;
+                    });
+                }
+                
+                if (busyTeachers.length > 0) {
+                    tHtmlItems += `<div class="px-3 py-1.5 bg-amber-100/50 border-b border-amber-200/50 text-[10px] font-black text-amber-800 uppercase tracking-widest sticky top-0 z-10">⚠️ Зайняті (Предмет зніметься)</div>`;
+                    busyTeachers.forEach(t => { 
+                        let isSelected = t.id === item.newTeacherId;
+                        tHtmlItems += `<div class="px-3 py-2 cursor-pointer hover:bg-amber-50 border-b border-amber-50 flex items-center transition-colors ${isSelected ? 'bg-amber-50' : ''}" onclick="window.onChangeNewTeacher(${index}, '${t.id}'); document.getElementById('zamina-teacher-dropdown').classList.add('hidden');">
+                            <span class="font-medium text-slate-800 text-sm">${t.name}</span>
+                            ${getBalanceBadge(t.id)}
+                        </div>`;
+                    });
+                }
+
+                window.teacherDropdownHTMLs[index] = tHtmlItems;
+
+                let selectedTeacherHTML = '-- Оберіть дію або викладача --';
+                if (item.newTeacherId === 'CANCELLED') {
+                    selectedTeacherHTML = '<span class="text-red-600 font-bold">❌ ЗНЯТТЯ УРОКУ (БЕЗ ЗАМІНИ)</span>';
+                } else if (item.newTeacherId) {
+                    let tObj = allTeachers.find(x => x.id === item.newTeacherId);
+                    if (tObj) selectedTeacherHTML = `<span class="font-bold text-indigo-700">${tObj.name}</span>`;
+                }
+
+                let sDisabled = (!item.newTeacherId || item.newTeacherId === 'CANCELLED') ? 'disabled' : '';
+                let sHtml = '<option value="" disabled selected>-- Оберіть предмет --</option>';
+                
+                if (item.newTeacherId && item.newTeacherId !== 'CANCELLED') {
+                    // Показуємо опцію "Той самий предмет" ТІЛЬКИ якщо викладач змінився
+                    if (item.newTeacherId !== item.oldTeacherId) {
+                        sHtml += `<option value="SAME_SUBJ" class="text-green-600 font-bold" ${item.newSubjId === 'SAME_SUBJ' ? 'selected' : ''}>🔄 ТОЙ САМИЙ ПРЕДМЕТ (ТІЛЬКИ ЗАМІНА ВЧИТЕЛЯ)</option>`;
+                    }
+                    
+                    let subjsForGroup = tgs[item.newTeacherId]?.[item.groupId];
+                    if (subjsForGroup && subjsForGroup.size > 0) {
+                        sHtml += '<optgroup label="ПРЕДМЕТИ ЦЬОГО ВИКЛАДАЧА В ГРУПІ">';
+                        Array.from(subjsForGroup).forEach(sId => { 
+                            // Якщо це той самий викладач, ховаємо поточний предмет з випадаючого списку (бо немає сенсу міняти на те саме)
+                            if (item.newTeacherId === item.oldTeacherId && sId === item.oldSubjId) return; 
+                            sHtml += `<option value="${sId}" ${item.newSubjId === sId ? 'selected' : ''}>${getSubjName(sId)}</option>`; 
+                        });
+                        sHtml += '</optgroup>';
+                    }
+                }
+
+                let title = index === 0 ? "Крок 1: Основна заміна" : `Крок ${index + 1}: Наслідок (Викладач був зайнятий)`;
+                let boxClass = index === 0 ? "border-indigo-200 bg-indigo-50/50" : "border-amber-200 bg-amber-50/50 mt-4";
+                let arrowHtml = index > 0 ? `<div class="text-center text-amber-400 my-2"><i class="fa-solid fa-arrow-down text-xl"></i></div>` : '';
+
+                html += `
+                ${arrowHtml}
+                <div class="p-4 rounded-xl border ${boxClass} shadow-sm relative transition-all">
+                    <div class="text-xs font-black uppercase text-slate-400 mb-3">${title}</div>
+                    <div class="bg-white p-3 rounded-lg border border-slate-200 text-sm mb-4 shadow-sm flex justify-between items-center">
+                        <div>
+                            <div class="mb-1"><span class="text-slate-500">Група:</span> <strong class="text-indigo-700 text-base ml-1">${item.groupNum}</strong> <span class="text-slate-400 mx-2">•</span> <span class="text-slate-500">Урок:</span> <strong class="text-base ml-1">${item.lessonNum}</strong></div>
+                            <div><span class="text-slate-500">Знімається:</span> <strong class="ml-1 text-red-600">${item.oldSubjName} (${getLastName(item.oldTeacherName)})</strong></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 relative">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-xs font-bold text-slate-600 uppercase">Дія / Хто заміняє:</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-0.5 rounded border border-slate-200 hover:bg-slate-50 transition-colors">
+                                <input type="checkbox" class="accent-indigo-600" ${item.showAllTeachers ? 'checked' : ''} onchange="window.toggleShowAllTeachers(${index}, this.checked)">
+                                <span class="text-[10px] font-bold text-slate-600 uppercase">Всі викладачі</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Кастомний селектор, що викликає глобальний дропдаун -->
+                        <div class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white cursor-pointer flex justify-between items-center hover:bg-slate-50 transition-colors zamina-teacher-selector" onclick="window.openZaminaTeacherDropdown(${index}, this)">
+                            <span class="font-medium truncate">
+                                ${selectedTeacherHTML}
+                            </span>
+                            <i class="fa-solid fa-chevron-down text-slate-400 text-xs ml-2 shrink-0"></i>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Який предмет читається:</label>
+                        <select class="w-full p-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 font-medium bg-white disabled:bg-slate-100 disabled:opacity-50" ${sDisabled} onchange="window.onChangeNewSubj(${index}, this.value)">
+                            ${sHtml}
+                        </select>
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+            setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+        };
+
+        window.onChangeNewTeacher = function(level, tId) {
+            substitutionChain = substitutionChain.slice(0, level + 1); 
+            substitutionChain[level].newTeacherId = tId;
+            substitutionChain[level].newSubjId = ''; 
+
+            if (tId !== 'CANCELLED') {
+                let lessonNum = substitutionChain[level].lessonNum;
+                let busyInfo = null;
+                let todaySubs = p.zaminyData[currentDateStr]?.records || {};
+                
+                for (let gId in dailyGrid) {
+                    let cell = dailyGrid[gId][lessonNum];
+                    let currentTId = null;
+                    if (cell && cell.activeTeachers) {
+                        let isBusy = cell.activeTeachers.some(at => at.id === tId);
+                        if (isBusy) currentTId = tId; 
+                    }
+                    
+                    let currentSId = cell ? cell.subjId : null;
+                    let currentSName = cell ? cell.subjName : null;
+                    let room = cell ? cell.room : '';
+
+                    for (let k in todaySubs) {
+                        let sub = todaySubs[k];
+                        if (sub && sub.lessonNum === lessonNum && sub.groupId === gId) { // Додано sub &&
+                            if (sub.type === 'cancel') currentTId = null;
+                            else if (sub.newTeacherId) {
+                                if (sub.newTeacherId === tId) currentTId = tId;
+                                else currentTId = sub.newTeacherId;
+                                currentSId = sub.newSubjId;
+                                currentSName = sub.newSubjName;
+                            }
+                        }
+                    }
+
+                    if (currentTId === tId) {
+                        // ДОДАНО: Якщо знайдено зайнятість у тій же групі, де ми зараз робимо заміну - ігноруємо, 
+                        // адже ми саме цей урок зараз і перепризначаємо
+                        if (gId === substitutionChain[level].groupId) continue; 
+                        
+                        let gNum = p.groupsData.find(g=>g.id === gId)?.num || gId;
+                        busyInfo = { groupId: gId, groupNum: gNum, subjId: currentSId, subjName: currentSName, room: room };
+                        break;
+                    }
+                }
+
+                if (busyInfo && busyInfo.subjId) {
+                    substitutionChain.push({
+                        level: level + 1,
+                        groupId: busyInfo.groupId,
+                        groupNum: busyInfo.groupNum,
+                        lessonNum: lessonNum,
+                        room: busyInfo.room,
+                        oldTeacherId: tId,
+                        oldTeacherName: allTeachers.find(t=>t.id===tId)?.name || '',
+                        oldSubjId: busyInfo.subjId,
+                        oldSubjName: busyInfo.subjName,
+                        newTeacherId: '',
+                        newSubjId: '',
+                        showAllTeachers: false
+                    });
+                }
+            }
+            renderSubChain();
+        };
+
+        window.onChangeNewSubj = function(level, sId) {
+            substitutionChain[level].newSubjId = sId;
+        };
+
+        document.getElementById('btn-save-sub').addEventListener('click', async () => {
+            for (let i=0; i<substitutionChain.length; i++) {
+                let item = substitutionChain[i];
+                if (!item.newTeacherId) { alert(`Заповніть викладача на кроці ${i+1}!`); return; }
+                if (item.newTeacherId !== 'CANCELLED' && !item.newSubjId) { alert(`Оберіть предмет на кроці ${i+1}!`); return; }
+            }
+
+            let btn = document.getElementById('btn-save-sub'); btn.innerText = '...'; btn.disabled = true;
+
+            let chainId = 'c_' + Date.now();
+            let docData = p.zaminyData[currentDateStr] || { date: currentDateStr, records: {} };
+            if(!docData.records) docData.records = {};
+
+            let localVychytkaUpdates = {}; 
+			 
+
+        // ДОДАЄМО ФУНКЦІЮ: Пошук найчастішого кабінету нового викладача
+        function getTeacherMainRoom(tId) {
+            if (!tId) return '';
+            let rozkladObj = p.rozkladData[`rozklad_${currentRIdx}`] || {};
+            let operData = rozkladObj.oper || {};
+            let regData = rozkladObj.reg || {};
+            let roomCounts = {};
+            
+            for (let key in operData) {
+                if (key.startsWith(tId + '_')) {
+                    let suffix = key.substring(tId.length + 1);
+                    let parts = suffix.split('_');
+                    if (parts.length === 2) {
+                        let dIdx = parts[0];
+                        let l = parts[1];
+                        let val = operData[key] || '';
+                        let grps = val.split(/[\/\,]/).map(s => s.trim()).filter(Boolean);
+                        
+                        grps.forEach(gStr => {
+                            let g = p.groupsData.find(x => (x.num || x.name).toString() === gStr || x.name === gStr);
+                            if (g) {
+                                let rVal = regData[`room_${g.id}_${dIdx}_${l}`];
+                                if (rVal && rVal.trim() !== '') {
+                                    roomCounts[rVal] = (roomCounts[rVal] || 0) + 1;
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            
+            let bestRoom = '';
+            let maxCount = 0;
+            for (let r in roomCounts) {
+                if (roomCounts[r] > maxCount) {
+                    maxCount = roomCounts[r];
+                    bestRoom = r;
+                }
+            }
+            return bestRoom;
+        }
+
+            for (let item of substitutionChain) {
+                let recordId = `z_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
+                let type = '';
+                if (item.newTeacherId === 'CANCELLED') type = 'cancel';
+                else if (item.newSubjId === 'SAME_SUBJ') type = 'teacher_only';
+                else type = 'subject_change';
+
+                let newTNameFormat = formatSubstituteNameFull(type, item, item.newTeacherId);
+                let newSName = type === 'cancel' ? '—' : (type === 'teacher_only' ? item.oldSubjName : getSubjName(item.newSubjId));
+
+                // ВИЗНАЧАЄМО ФІНАЛЬНИЙ КАБІНЕТ ДЛЯ НОВОГО ВИКЛАДАЧА
+                let finalRoom = item.room || '';
+                if (type !== 'cancel' && item.newTeacherId) {
+                    let tRoom = getTeacherMainRoom(item.newTeacherId);
+                    if (tRoom) finalRoom = tRoom; // Якщо у викладача є свій кабінет - ставимо його
+                }
+
+                let record = {
+                    id: recordId,
+                    chainId: chainId,
+                    type: type,
+                    groupId: item.groupId,
+                    groupNum: item.groupNum,
+                    lessonNum: item.lessonNum,
+                    room: finalRoom, // <--- Тепер сюди записується кабінет нового вчителя
+                    oldTeacherId: item.oldTeacherId,
+                    oldTeacherName: item.oldTeacherName, 
+                    oldSubjId: item.oldSubjId,
+                    oldSubjName: item.oldSubjName,
+                    newTeacherId: type === 'cancel' ? null : item.newTeacherId,
+                    newTeacherName: newTNameFormat,
+                    newSubjId: type === 'subject_change' ? item.newSubjId : (type === 'teacher_only' ? item.oldSubjId : null),
+                    newSubjName: newSName
+                };
+                docData.records[record.id] = record;
+
+                let wIndex = getWeekIndexForDateLocal(item.groupId, new Date(currentDateStr));
+                if (wIndex !== null) {
+                    if (!localVychytkaUpdates[item.groupId]) {
+                        localVychytkaUpdates[item.groupId] = {
+                            hours: JSON.parse(JSON.stringify(p.vychytkaData[item.groupId]?.hours || {})),
+                            comments: JSON.parse(JSON.stringify(p.vychytkaData[item.groupId]?.comments || {}))
+                        };
+                    }
+                    
+                    let vData = localVychytkaUpdates[item.groupId];
+                    let oldKey = `${item.oldSubjId}_w${wIndex}`;
+                    
+                    if (!vData.hours[oldKey]) vData.hours[oldKey] = { zamina: '', rozklad: '' };
+                    
+                    if (type === 'cancel' || type === 'subject_change') {
+                        let oldZamStr = vData.hours[oldKey].zamina;
+                        let oldZam = (oldZamStr !== undefined && oldZamStr !== '') ? parseFloat(oldZamStr) : (parseFloat(vData.hours[oldKey].rozklad) || 0);
+                        vData.hours[oldKey].zamina = Math.max(0, oldZam - 1);
+                    }
+                    
+                    if (type === 'subject_change') {
+                        let newKey = `${item.newSubjId}_w${wIndex}`;
+                        if (!vData.hours[newKey]) vData.hours[newKey] = { zamina: '', rozklad: '' };
+                        let newZamStr = vData.hours[newKey].zamina;
+                        let newZam = (newZamStr !== undefined && newZamStr !== '') ? parseFloat(newZamStr) : (parseFloat(vData.hours[newKey].rozklad) || 0);
+                        vData.hours[newKey].zamina = newZam + 1;
+                    }
+
+                    if (type === 'teacher_only') {
+                        if (!vData.comments[oldKey]) vData.comments[oldKey] = {};
+                        let pDateStr = getUkrDateString(currentDateStr);
+                        let cmtText = `${pDateStr} замість ${getLastName(item.oldTeacherName)}, читав/ла ${getLastName(newTNameFormat)} (урок №${item.lessonNum})`;
+                        vData.comments[oldKey].zamina = { text: cmtText, color: '#3b82f6' };
+                    }
+                }
+            }
+
+            let promises = [];
+            
+            promises.push(p.api.saveZamina(currentDateStr, { records: docData.records }));
+
+            for (let gId in localVychytkaUpdates) {
+                if (!p.vychytkaData[gId]) p.vychytkaData[gId] = {};
+                p.vychytkaData[gId].hours = localVychytkaUpdates[gId].hours;
+                p.vychytkaData[gId].comments = localVychytkaUpdates[gId].comments;
+                promises.push(p.api.saveVychytka(gId, { 
+                    hours: localVychytkaUpdates[gId].hours, 
+                    comments: localVychytkaUpdates[gId].comments 
+                }));
+            }
+            
+            await Promise.all(promises);
+
+            document.getElementById('sub-modal').classList.add('hidden');
+            btn.innerText = 'Зберегти'; btn.disabled = false;
+            
+            processDateChange(); 
+        });
+
+        function renderSubstitutions() {
+            const container = document.getElementById('substitutions-list');
+            let docData = p.zaminyData[currentDateStr];
+
+            if (!docData || !docData.records || Object.keys(docData.records).length === 0) { 
+                container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm italic">На цю дату замін немає.</div>'; 
+                return; 
+            }
+
+            let chains = {};
+            Object.values(docData.records).forEach(r => {
+				if (!r) return; // Додано захист від null
+                let cId = r.chainId || r.id; 
+                if (!chains[cId]) chains[cId] = [];
+                chains[cId].push(r);
+            });
+
+            let sortedChainIds = Object.keys(chains).sort((a,b) => {
+                let rA = chains[a][0]; let rB = chains[b][0];
+                let gA = parseInt(rA.groupNum)||0; let gB = parseInt(rB.groupNum)||0; 
+                if(gA!==gB) return gA-gB; return rA.lessonNum - rB.lessonNum;
+            });
+
+            let html = ''; 
+            
+            sortedChainIds.forEach(cId => {
+                let items = chains[cId];
+                let isMulti = items.length > 1;
+
+                html += `<div class="bg-white p-2.5 rounded-xl border border-indigo-200 shadow-sm flex flex-col gap-1.5 relative">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-1.5 mb-1">
+                        <div class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                            ${isMulti ? '<i class="fa-solid fa-link text-indigo-400"></i> Ланцюжкова заміна' : 'Заміна'}
+                        </div>
+                        <button onclick="window.revertSubstitutionChain('${cId}')" class="text-slate-400 hover:text-red-600 transition-colors bg-slate-50 hover:bg-red-50 px-2 py-1 rounded" title="Скасувати всю групу замін"><i class="fa-solid fa-trash"></i></button>
+                    </div>`;
+
+                items.forEach((r, idx) => {
+                    let statusBadge = '';
+                    if (r.type === 'cancel') statusBadge = '<span class="bg-red-100 text-red-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Зняття</span>';
+                    else if (r.type === 'teacher_only') statusBadge = '<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Вчитель</span>';
+                    else statusBadge = '<span class="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Предмет</span>';
+
+                    if (idx > 0) html += `<div class="flex justify-center my-0 z-10"><i class="fa-solid fa-arrow-down text-indigo-200 text-xs"></i></div>`;
+
+                    html += `
+                    <div class="bg-slate-50 p-2 rounded-lg border border-slate-100 text-sm">
+                        <div class="font-bold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Гр. ${r.groupNum} <span class="text-slate-300 mx-1">•</span> Ур. ${r.lessonNum}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <div class="flex-1 truncate">
+                                <span class="text-slate-400 uppercase text-[9px] block">Було:</span>
+                                <span class="font-bold text-slate-600">${r.oldTeacherName}</span> <span class="text-slate-500">(${r.oldSubjName})</span>
+                            </div>
+                            <i class="fa-solid fa-arrow-right text-slate-300 mx-1 text-[10px]"></i>
+                            <div class="flex-1 truncate">
+                                <span class="text-slate-400 uppercase text-[9px] block">Стало:</span>
+                                <span class="font-bold text-indigo-700">${r.newTeacherName}</span> <span class="text-indigo-600">(${r.newSubjName})</span>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                
+                html += `</div>`;
+            });
+            container.innerHTML = html;
+        }
+
+		window.revertSubstitutionChain = async function(chainId) {
+			if(!await p.customConfirm("Скасувати цю заміну? Години та коментарі у 'Вичитці' будуть відновлені автоматично.")) return;
+			
+			let docData = p.zaminyData[currentDateStr];
+			if (!docData || !docData.records) return;
+
+			let localVychytkaUpdates = {}; 
+			let keysToDelete = []; 
+
+			for (let rId in docData.records) {
+				let r = docData.records[rId];
+				if (!r) continue; // Додано захист
+				if ((r.chainId && r.chainId === chainId) || r.id === chainId) {
+					keysToDelete.push(rId);
+					
+					let wIndex = getWeekIndexForDateLocal(r.groupId, new Date(currentDateStr));
+					if (wIndex !== null) {
+						if (!localVychytkaUpdates[r.groupId]) {
+							localVychytkaUpdates[r.groupId] = {
+								hours: JSON.parse(JSON.stringify(p.vychytkaData[r.groupId]?.hours || {})),
+								comments: JSON.parse(JSON.stringify(p.vychytkaData[r.groupId]?.comments || {}))
+							};
+						}
+						
+						let vData = localVychytkaUpdates[r.groupId];
+						let oldKey = `${r.oldSubjId}_w${wIndex}`;
+						let newKey = `${r.newSubjId}_w${wIndex}`;
+
+						if (r.type === 'cancel' || r.type === 'subject_change') {
+							if (vData.hours[oldKey] && vData.hours[oldKey].zamina !== '') vData.hours[oldKey].zamina = parseFloat(vData.hours[oldKey].zamina) + 1;
+						}
+						
+						if (r.type === 'subject_change') {
+							if (vData.hours[newKey] && vData.hours[newKey].zamina !== '') vData.hours[newKey].zamina = Math.max(0, parseFloat(vData.hours[newKey].zamina) - 1);
+						}
+
+						if (r.type === 'teacher_only') {
+							if (vData.comments[oldKey] && vData.comments[oldKey].zamina) {
+								vData.comments[oldKey].zamina = null; 
+							}
+						}
+					}
+				}
+			}
+
+			for (let id of keysToDelete) {
+				docData.records[id] = null; // Замість delete передаємо null, щоб Firebase перезаписав і знищив запис
+			}
+
+			let promises = [];
+
+			let recordsToSave = Object.keys(docData.records).length === 0 ? null : docData.records;
+			promises.push(p.api.saveZamina(currentDateStr, { records: recordsToSave }));
+
+			for (let gId in localVychytkaUpdates) {
+                if (!p.vychytkaData[gId]) p.vychytkaData[gId] = {};
+                p.vychytkaData[gId].hours = localVychytkaUpdates[gId].hours;
+                p.vychytkaData[gId].comments = localVychytkaUpdates[gId].comments;
+				promises.push(p.api.saveVychytka(gId, { 
+                    hours: localVychytkaUpdates[gId].hours, 
+                    comments: localVychytkaUpdates[gId].comments 
+                }));
+			}
+
+			await Promise.all(promises);
+			
+			processDateChange();
+		};
+
+        window.executePrint = function() {
+            renderPrintHTML();
+            document.getElementById('print-modal').classList.add('hidden');
+            setTimeout(() => {
+                window.print();
+            }, 100);
+        };
+
+        window.copyImage = function() {
+            let pContainer = document.getElementById('print-container');
+            document.getElementById('print-type').value = 'formal';
+            renderPrintHTML();
+            
+            pContainer.style.display = 'block';
+            pContainer.style.position = 'absolute';
+            pContainer.style.top = '-9999px';
+            pContainer.style.backgroundColor = 'white';
+            pContainer.style.padding = '20px';
+            pContainer.style.width = '900px'; 
+            pContainer.style.fontFamily = "'Times New Roman', Times, serif";
+            pContainer.style.color = "black";
+
+            html2canvas(pContainer, { scale: 2, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
+                canvas.toBlob(blob => {
+                    try {
+                        navigator.clipboard.write([
+                            new ClipboardItem({ 'image/png': blob })
+                        ]).then(() => {
+                            alert("✅ Картинку успішно скопійовано в буфер обміну! Можете вставити її у Viber/Telegram.");
+                            pContainer.style.cssText = '';
+                        });
+                    } catch(e) {
+                        alert("❌ Помилка копіювання. Ваш браузер може не підтримувати цю функцію.");
+                        pContainer.style.cssText = '';
+                    }
+                });
+            });
+        };
+
+        function renderPrintHTML() {
+            let sDateStr = document.getElementById('print-date-start').value;
+            let eDateStr = document.getElementById('print-date-end').value;
+            let type = document.getElementById('print-type').value;
+
+            if (!sDateStr || !eDateStr) { alert("Оберіть дати для друку!"); return; }
+            if (sDateStr > eDateStr) { alert("Кінцева дата не може бути меншою за початкову!"); return; }
+
+            let sDate = new Date(sDateStr);
+            let eDate = new Date(eDateStr);
+            
+            let printRecords = [];
+            for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
+                let dStr = d.toISOString().split('T')[0];
+                if (p.zaminyData[dStr] && p.zaminyData[dStr].records) {
+                    Object.values(p.zaminyData[dStr].records).forEach(r => {
+						if (!r) return; // Додано захист
+                        r._dateStr = dStr; 
+                        
+                        if (type === 'formal' || type === 'log_all') printRecords.push(r);
+                        else if (type === 'log_subject' && r.type === 'subject_change') printRecords.push(r);
+                        else if (type === 'log_teacher' && r.type === 'teacher_only') printRecords.push(r);
+                        else if (type === 'log_cancel' && r.type === 'cancel') printRecords.push(r);
+                    });
+                }
+            }
+
+            let pContainer = document.getElementById('print-container');
+            if (printRecords.length === 0) {
+                pContainer.innerHTML = '<div style="text-align:center; font-weight:bold; font-size:16px;">У вказаному діапазоні немає записів обраного типу.</div>';
+                return;
+            }
+
+            let html = '';
+
+            if (type === 'formal') {
+                let byDate = {};
+                printRecords.forEach(r => {
+                    if (!byDate[r._dateStr]) byDate[r._dateStr] = [];
+                    byDate[r._dateStr].push(r);
+                });
+                
+                let sortedDates = Object.keys(byDate).sort();
+
+                html += `<div style="text-align: center; font-weight: bold; font-size: 20px; margin-bottom: 20px; letter-spacing: 2px;">ЗАМІНА УРОКІВ</div>`;
+                
+                sortedDates.forEach(dStr => {
+                    html += `<div style="text-align: center; font-weight: bold; font-style: italic; font-size: 16px; margin-top: 10px;">${getUkrDayName(dStr)}</div>`;
+                    html += `<div style="text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 10px;">${getUkrDateString(dStr)}</div>`;
+                    
+                    html += `<table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 14px; margin-bottom: 25px;">
+                        <thead>
+                            <tr>
+                                <th style="border: 1px solid black; padding: 6px; width: 7%;">Група</th>
+                                <th style="border: 1px solid black; padding: 6px; width: 7%;">№ уроку</th>
+                                <th style="border: 1px solid black; padding: 6px; width: 6%;">кабінет</th>
+                                <th style="border: 1px solid black; padding: 6px; width: 20%;">Прізвище викладача,<br>в якого знято урок</th>
+                                <th style="border: 1px solid black; padding: 6px; width: 20%;">Знятий предмет</th>
+                                <th style="border: 1px solid black; padding: 6px; width: 20%;">Прізвище викладача,<br>якому додано урок</th>
+                                <th style="border: 1px solid black; padding: 6px; width: 20%;">Предмет</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                    
+                    let recs = byDate[dStr].sort((a,b) => { let gA = parseInt(a.groupNum)||0; let gB = parseInt(b.groupNum)||0; if(gA!==gB) return gA-gB; return a.lessonNum - b.lessonNum; });
+                    recs.forEach(r => {
+                        let znyato = r.oldTeacherName; 
+                        let znyatoPredm = r.oldSubjName; 
+                        let dodano = '';
+                        let predm = '';
+                        
+                        if (r.type === 'cancel') {
+                            dodano = '—'; predm = 'Знято';
+                        } else if (r.type === 'teacher_only') {
+                            dodano = r.newTeacherName;
+                            predm = r.oldSubjName;
+                        } else if (r.type === 'subject_change') {
+                            dodano = r.newTeacherName;
+                            predm = r.newSubjName;
+                        }
+
+                        html += `<tr>
+                            <td style="border: 1px solid black; padding: 6px;">${r.groupNum}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.lessonNum}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.room || ''}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${znyato}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${znyatoPredm}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${dodano}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${predm}</td>
+                        </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                });
+            
+            } else if (type === 'log_teacher') {
+                let byTeacher = {};
+                printRecords.forEach(r => {
+                    let tName = r.newTeacherName;
+                    if (!byTeacher[tName]) byTeacher[tName] = [];
+                    byTeacher[tName].push(r);
+                });
+
+                let sortedTeachers = Object.keys(byTeacher).sort((a, b) => a.localeCompare(b, 'uk'));
+
+                html += `<div style="text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">ЖУРНАЛ ЗАМІН: ЗАМІНА ВИКЛАДАЧА</div>`;
+
+                sortedTeachers.forEach(tName => {
+                    html += `<div style="font-weight: bold; font-size: 15px; margin-top: 20px; margin-bottom: 10px;">Викладач: ${tName}</div>`;
+                    html += `<table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 14px;">
+                        <thead><tr>
+                            <th style="border: 1px solid black; padding: 6px; width: 15%;">Дата</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 10%;">Група</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 10%;">Урок</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 25%;">Замість кого</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 40%;">Предмет</th>
+                        </tr></thead>
+                        <tbody>`;
+                    
+                    let recs = byTeacher[tName].sort((a,b) => a._dateStr.localeCompare(b._dateStr));
+                    recs.forEach(r => {
+                        html += `<tr>
+                            <td style="border: 1px solid black; padding: 6px;">${getUkrDateString(r._dateStr)}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.groupNum}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.lessonNum}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.oldTeacherName}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.oldSubjName}</td>
+                        </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                });
+            } else {
+                let byDate = {};
+                printRecords.forEach(r => {
+                    if (!byDate[r._dateStr]) byDate[r._dateStr] = [];
+                    byDate[r._dateStr].push(r);
+                });
+                
+                let sortedDates = Object.keys(byDate).sort();
+                let titleMap = { 'log_all': 'ВСІ ЗАМІНИ', 'log_subject': 'ЗАМІНА УРОКІВ (ПРЕДМЕТА)', 'log_cancel': 'ЗНЯТІ УРОКИ' };
+
+                html += `<div style="text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">ЖУРНАЛ ЗАМІН: ${titleMap[type]}</div>`;
+                
+                sortedDates.forEach(dStr => {
+                    html += `<div style="font-weight: bold; font-size: 15px; margin-top: 20px; margin-bottom: 10px;">Дата: ${getUkrDateString(dStr)}</div>`;
+                    html += `<table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 14px;">
+                        <thead><tr>
+                            <th style="border: 1px solid black; padding: 6px; width: 8%;">Група</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 8%;">Урок</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 12%;">Тип</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 36%;">Знято (Було)</th>
+                            <th style="border: 1px solid black; padding: 6px; width: 36%;">Поставлено (Стало)</th>
+                        </tr></thead>
+                        <tbody>`;
+                    
+                    let recs = byDate[dStr].sort((a,b) => { let gA = parseInt(a.groupNum)||0; let gB = parseInt(b.groupNum)||0; if(gA!==gB) return gA-gB; return a.lessonNum - b.lessonNum; });
+                    recs.forEach(r => {
+                        let typeLabel = ''; let dodano = '';
+                        if (r.type === 'cancel') { typeLabel = 'Знято'; dodano = '—'; }
+                        else if (r.type === 'teacher_only') { typeLabel = 'Вчитель'; dodano = `${r.newTeacherName} (${r.oldSubjName})`; }
+                        else if (r.type === 'subject_change') { typeLabel = 'Предмет'; dodano = `${r.newTeacherName} (${r.newSubjName})`; }
+
+                        html += `<tr>
+                            <td style="border: 1px solid black; padding: 6px;">${r.groupNum}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.lessonNum}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${typeLabel}</td>
+                            <td style="border: 1px solid black; padding: 6px;">${r.oldTeacherName} (${r.oldSubjName})</td>
+                            <td style="border: 1px solid black; padding: 6px;">${dodano}</td>
+                        </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                });
+            }
+
+            pContainer.innerHTML = html;
+        }
+
+        // Запуск
+        document.addEventListener('DOMContentLoaded', () => { if(p.groupsData && p.groupsData.length > 0) window.onDataUpdated(); });
+    </script>
+</body>
+</html>

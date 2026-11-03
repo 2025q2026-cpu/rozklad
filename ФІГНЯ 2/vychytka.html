@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: transparent; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        
+        .table-wrapper { border-top: 1px solid #94a3b8; border-left: 1px solid #94a3b8; }
+        .excel-table { border-collapse: separate; border-spacing: 0; width: 100%; user-select: none; }
+        .excel-table th, .excel-table td { border-bottom: 1px solid #94a3b8; padding: 2px; }
+        
+        .col-num { width: 40px; min-width: 40px; max-width: 40px; left: 0; position: sticky; z-index: 60; }
+        .col-predmet { width: 220px; min-width: 220px; max-width: 220px; left: 40px; position: sticky; z-index: 60; }
+        .col-teacher { width: 140px; min-width: 140px; max-width: 140px; left: 260px; position: sticky; z-index: 60; }
+        
+        .z-top-left { z-index: 70 !important; } 
+        .z-top { z-index: 50 !important; } 
+        .z-left { z-index: 60 !important; }      
+        
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        
+        .dimmed-week { opacity: 0.3; filter: grayscale(100%); pointer-events: none; }
+        
+        .selected-cell { box-shadow: inset 0 0 0 2px #4f46e5 !important; background-color: #e0e7ff !important; }
+        .selected-cell input { background-color: #e0e7ff !important; }
+        
+        .comment-triangle {
+            position: absolute; bottom: 0; right: 0;
+            width: 0; height: 0;
+            border-left: 8px solid transparent;
+            border-bottom-width: 8px; border-bottom-style: solid;
+            z-index: 10; pointer-events: none;
+        }
+
+        .print-hide { display: block; }
+        @media print { .print-hide { display: none !important; } }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden font-sans text-slate-700">
+
+    <div id="submenu-vychytka" class="px-4 flex justify-between items-center text-sm font-medium text-slate-500 shrink-0 border-b border-slate-200 pb-2 print-hide bg-white/50 pt-2 rounded-t-xl">
+        <div class="flex items-center gap-4 w-2/3">
+            <div class="flex bg-slate-200 p-1 rounded-lg shrink-0 shadow-inner">
+                <button id="toggle-groups" onclick="window.setVychytkaMode('groups')" class="px-3 py-1 rounded-md text-sm font-bold bg-white text-indigo-700 shadow-sm transition-all">Групи</button>
+                <button id="toggle-teachers" onclick="window.setVychytkaMode('teachers')" class="px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">Викладачі</button>
+            </div>
+            
+            <div id="vychytka-group-tabs" class="flex gap-2 overflow-x-auto items-center pb-1 flex-1"></div>
+            
+            <div id="vychytka-teacher-search-container" class="hidden flex-1 relative">
+                <i class="fa-solid fa-search absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+                <input type="text" id="vychytka-teacher-search" placeholder="Пошук викладача..." autocomplete="off" class="pl-7 pr-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 w-64 shadow-sm bg-white">
+                <div id="vychytka-teacher-dropdown" class="absolute top-full left-0 bg-white border border-slate-300 rounded-lg shadow-xl mt-1 w-64 max-h-48 overflow-y-auto hidden z-[100] divide-y divide-slate-100"></div>
+            </div>
+        </div>
+        
+        <div class="flex gap-2 items-center shrink-0">
+            <div id="recon-indicator" class="hidden bg-orange-100 text-orange-700 w-8 h-8 rounded-lg flex items-center justify-center shadow-inner border border-orange-200 animate-pulse cursor-help" title="Режим звірки по тижнях увімкнено">
+                <i class="fa-solid fa-eye"></i>
+            </div>
+            <button onclick="window.openCommentModal()" class="bg-amber-100 text-amber-700 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm hover:bg-amber-200 transition-colors" title="Додати / Видалити коментар з виділених комірок">
+                <i class="fa-solid fa-comment-dots"></i>
+            </button>
+            <div class="w-px h-6 bg-slate-300 mx-1"></div>
+            <button id="btn-generate-vychytka" onclick="window.generateVychytka()" class="bg-indigo-600 text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-sm hover:bg-indigo-700 transition-colors" title="Сформувати розклад автоматично з Екрану">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </button>
+            <button id="btn-toggle-lock" onclick="window.toggleLock()" class="bg-slate-200 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm hover:bg-slate-300 transition-colors" title="Заблокувати / Розблокувати внесення змін у розклад">
+                <i class="fa-solid fa-lock-open" id="lock-icon"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ГОЛОВНЕ ПОЛЕ -->
+    <div id="mode-vychytka" class="flex-1 flex flex-col overflow-hidden h-full pt-2">
+        <div id="vychytka-table-container" class="overflow-auto flex-1 bg-white relative rounded-lg table-wrapper select-none"></div>
+    </div>
+
+    <!-- Модалка для коментарів -->
+    <div id="comment-modal" class="fixed inset-0 bg-slate-900/50 hidden z-[200] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-96 overflow-hidden">
+            <div class="p-4 border-b bg-amber-50 font-bold text-amber-800 flex items-center"><i class="fa-solid fa-comment-dots mr-2"></i>Коментар до комірок</div>
+            <div class="p-4 flex flex-col gap-3">
+                <textarea id="comment-text" rows="3" class="w-full border border-slate-300 rounded p-2 text-sm outline-none focus:border-amber-500" placeholder="Введіть текст коментаря..."></textarea>
+                <div class="flex items-center gap-3 mt-2">
+                    <label class="text-sm font-medium text-slate-600">Колір маркера:</label>
+                    <input type="color" id="comment-color" value="#f59e0b" class="w-8 h-8 rounded border-0 p-0 cursor-pointer">
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-100 bg-slate-50 flex justify-between gap-2">
+                <button id="btn-delete-comment" onclick="window.deleteComment()" class="px-4 py-1.5 rounded-lg text-sm font-bold text-red-600 hover:bg-red-50 transition-colors hidden"><i class="fa-solid fa-trash mr-1"></i> Видалити</button>
+                <div class="flex gap-2 ml-auto">
+                    <button onclick="document.getElementById('comment-modal').classList.add('hidden')" class="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">Скасувати</button>
+                    <button onclick="window.saveComment()" class="px-4 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors shadow-sm">Зберегти</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const p = window.parent; // Отримуємо глобальні змінні з index.html
+
+        // Локальний стан Вичитки
+        window.vychytkaViewMode = localStorage.getItem('fignia_vychytka_mode') || 'groups'; 
+        window.currentVychytkaGroupId = null; 
+        window.currentVychytkaTeacherId = localStorage.getItem('fignia_active_teacher') || null;
+        window.reconciliationWeekIndex = null; 
+
+        let selectedCells = new Set();
+        let isDragging = false;
+        let startCell = null;
+
+        // ВАЖЛИВО: Захист від втрати фокусу при оновленні БД
+        window.onDataUpdated = function() {
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+            if (isTyping) {
+                // Якщо користувач вводить дані - оновлюємо тільки підрахунки
+                window.updateVychytkaCalculations();
+            } else {
+                // Якщо ні - повністю перемальовуємо UI та таблицю
+                window.updateVychytkaModeUI();
+            }
+        };
+
+        window.setVychytkaMode = function(mode) {
+            window.vychytkaViewMode = mode;
+            window.reconciliationWeekIndex = null;
+            document.getElementById('recon-indicator').classList.add('hidden');
+            localStorage.setItem('fignia_vychytka_mode', mode);
+            window.updateVychytkaModeUI();
+        };
+
+        window.updateVychytkaModeUI = function() {
+            const btnGroups = document.getElementById('toggle-groups');
+            const btnTeachers = document.getElementById('toggle-teachers');
+            const containerGroups = document.getElementById('vychytka-group-tabs');
+            const containerTeachers = document.getElementById('vychytka-teacher-search-container');
+
+            if (window.vychytkaViewMode === 'groups') {
+                btnGroups.className = "px-3 py-1 rounded-md text-sm font-bold bg-white text-indigo-700 shadow-sm transition-all";
+                btnTeachers.className = "px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
+                containerGroups.classList.remove('hidden');
+                containerTeachers.classList.add('hidden');
+                window.renderVychytkaGroups();
+                window.updateLockUI();
+            } else {
+                btnTeachers.className = "px-3 py-1 rounded-md text-sm font-bold bg-white text-indigo-700 shadow-sm transition-all";
+                btnGroups.className = "px-3 py-1 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all";
+                containerGroups.classList.add('hidden');
+                containerTeachers.classList.remove('hidden');
+                
+                let selectedTeacher = p.teachersData.find(t => t.id === window.currentVychytkaTeacherId);
+                if (selectedTeacher) {
+                    document.getElementById('vychytka-teacher-search').value = selectedTeacher.name;
+                } else {
+                    document.getElementById('vychytka-teacher-search').value = '';
+                }
+                window.updateLockUI();
+                window.renderVychytkaTable();
+            }
+        };
+
+        const searchInput = document.getElementById('vychytka-teacher-search');
+        const searchDropdown = document.getElementById('vychytka-teacher-dropdown');
+
+        searchInput.addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase().trim();
+            if (val.length === 0) { searchDropdown.classList.add('hidden'); return; }
+            const results = p.teachersData.filter(t => t.name.toLowerCase().includes(val));
+            if (results.length === 0) {
+                searchDropdown.innerHTML = '<div class="p-3 text-xs text-slate-500 text-center">Не знайдено</div>';
+            } else {
+                let html = '';
+                results.forEach(t => { html += `<div class="p-2 hover:bg-indigo-50 cursor-pointer transition-colors text-sm text-slate-700 font-medium" onclick="window.selectVychytkaTeacher('${t.id}')">${t.name}</div>`; });
+                searchDropdown.innerHTML = html;
+            }
+            searchDropdown.classList.remove('hidden');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) searchDropdown.classList.add('hidden');
+        });
+
+        window.selectVychytkaTeacher = function(teacherId) {
+            window.currentVychytkaTeacherId = teacherId;
+            window.reconciliationWeekIndex = null;
+            document.getElementById('recon-indicator').classList.add('hidden');
+            localStorage.setItem('fignia_active_teacher', teacherId);
+            let t = p.teachersData.find(x => x.id === teacherId);
+            searchInput.value = t ? t.name : '';
+            searchDropdown.classList.add('hidden');
+            window.renderVychytkaTable();
+        };
+
+        window.renderVychytkaGroups = function() {
+            let tabsHtml = '';
+            if(!p.groupsData) return;
+
+            p.groupsData.forEach((g, i) => {
+                tabsHtml += `<button class="vychytka-sub-tab px-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-500 hover:bg-slate-100" data-groupid="${g.id}" onclick="window.selectVychytkaGroup('${g.id}', this)">${g.num || g.name}</button>`;
+            });
+            document.getElementById('vychytka-group-tabs').innerHTML = tabsHtml;
+            
+            const savedGroupId = localStorage.getItem('fignia_active_group');
+            if (savedGroupId && p.groupsData.some(g => g.id === savedGroupId)) {
+                window.selectVychytkaGroup(savedGroupId, document.querySelector(`.vychytka-sub-tab[data-groupid="${savedGroupId}"]`));
+            } else if(p.groupsData.length > 0) {
+                window.selectVychytkaGroup(p.groupsData[0].id, document.querySelector('.vychytka-sub-tab'));
+            }
+        };
+
+        window.selectVychytkaGroup = function(groupId, btn) {
+            window.currentVychytkaGroupId = groupId;
+            window.reconciliationWeekIndex = null; 
+            document.getElementById('recon-indicator').classList.add('hidden');
+            localStorage.setItem('fignia_active_group', groupId); 
+            document.querySelectorAll('.vychytka-sub-tab').forEach(b => { b.classList.remove('bg-indigo-100', 'text-indigo-700', 'font-bold', 'shadow-sm'); b.classList.add('text-slate-500'); });
+            if(btn) { btn.classList.remove('text-slate-500'); btn.classList.add('bg-indigo-100', 'text-indigo-700', 'font-bold', 'shadow-sm'); }
+            window.updateLockUI();
+            window.renderVychytkaTable();
+        };
+
+        function getGroupSubjects(groupId) {
+            const group = p.groupsData.find(g => g.id === groupId); if (!group) return [];
+            let groupSubjects = [];
+            
+            if (group.education.includes('Базова')) {
+                p.genSubjectsData.forEach(subj => {
+                    let mainH = parseFloat(p.workloadMap[`gen_${subj.id}_${groupId}`]?.hours || 0) || 0;
+                    if (mainH > 0) { 
+                        let tM = p.workloadMap[`gen_${subj.id}_${groupId}`]?.teacherId; 
+                        let tName = tM ? p.teachersData.find(t=>t.id===tM)?.name : '';
+                        groupSubjects.push({ id: `gen_${subj.id}`, name: subj.name, teacher: tName, totalHours: mainH });
+                    }
+                });
+                ['STATIC_consult', 'STATIC_exams'].forEach(sId => {
+                    let h = parseFloat(p.workloadMap[`gen_${sId}_${groupId}`]?.hours || 0) || 0;
+                    if (h > 0) {
+                        let t = p.workloadMap[`gen_${sId}_${groupId}`]?.teacherId; let tName = t ? p.teachersData.find(x=>x.id===t)?.name : '';
+                        groupSubjects.push({ id: `gen_${sId}`, name: sId === 'STATIC_consult' ? 'Консультації' : 'Екзамени', teacher: tName || '', totalHours: h });
+                    }
+                });
+            }
+            p.specSubjectsAll.forEach(subj => {
+                let mainH = parseFloat(p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.hours || 0) || 0;
+                if (mainH > 0) {
+                    let tM = p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.teacherId; let tM2 = p.workloadMap[`spec_${subj.id}_main_${groupId}`]?.teacherId2;
+                    let tNames = new Set();
+                    if(tM) tNames.add(p.teachersData.find(t=>t.id===tM)?.name || ''); if(tM2) tNames.add(p.teachersData.find(t=>t.id===tM2)?.name || '');
+                    groupSubjects.push({ id: `spec_${subj.id}`, name: subj.name, teacher: Array.from(tNames).filter(Boolean).join(' / '), totalHours: mainH });
+                }
+            });
+
+            // Динамічно збираємо всі ключі ДКА з бази даних
+            let dkaKeys = ['STATIC_dka'];
+            for (let key in p.workloadMap) {
+                if (key.startsWith('spec_STATIC_dka_') && key.endsWith(`_${groupId}`)) {
+                    let coreKey = key.replace('spec_', '').replace(`_${groupId}`, '');
+                    if (coreKey !== 'STATIC_dka' && !dkaKeys.includes(coreKey)) {
+                        dkaKeys.push(coreKey);
+                    }
+                }
+            }
+
+            let allStaticKeys = ['STATIC_pract', 'STATIC_navch', 'STATIC_cons', ...dkaKeys, 'STATIC_dpa'];
+
+            allStaticKeys.forEach(sId => {
+                let h = parseFloat(p.workloadMap[`spec_${sId}_${groupId}`]?.hours || 0) || 0;
+                if (h > 0) {
+                    let tM = p.workloadMap[`spec_${sId}_${groupId}`]?.teacherId; let tNames = [];
+                    if(tM) tNames.push(p.teachersData.find(t=>t.id===tM)?.name || '');
+                    
+                    let baseName = sId.startsWith('STATIC_dka') ? 'ДКА' : sId.replace('STATIC_', '');
+                    let namesMap = { 'pract': 'Вир. практика', 'navch': 'Вир. навчання', 'cons': 'Консультації', 'dpa': 'ДПА', 'ДКА': 'ДКА' };
+                    
+                    groupSubjects.push({ 
+                        id: `spec_${sId}`, 
+                        name: namesMap[baseName] || baseName, 
+                        teacher: tNames.filter(Boolean).join(' / '), 
+                        totalHours: h 
+                    });
+                }
+            });
+            return groupSubjects;
+        }
+
+        function getRozkladBlocks(groupId) {
+			let eData = p.ekranData[groupId] || { rozklads: [] };
+			let rozklads = eData.rozklads || [];
+			
+			let currDate = p.generalSettings.sem1Start ? new Date(p.generalSettings.sem1Start) : null;
+			let sem1EndDate = p.generalSettings.sem1End ? new Date(p.generalSettings.sem1End) : null;
+			let sem2StartDate = p.generalSettings.sem2Start ? new Date(p.generalSettings.sem2Start) : null;
+			let sem2EndDate = p.generalSettings.sem2End ? new Date(p.generalSettings.sem2End) : null;
+			
+			// Визначаємо кінець тижня: 6 (субота) для 6-денного тижня, інакше 5 (п'ятниця)
+			let targetDay = p.generalSettings.workDays === '6' ? 6 : 5;
+			
+			let blocks = [];
+			let globalIdx = 0;
+			
+			rozklads.forEach((r, rIdx) => {
+				let block = { rId: r.id, name: r.name || ('Розклад ' + (rIdx+1)), weeks: [], cols: r.cols, isSem1End: false };
+				
+				r.cols.forEach(col => {
+					let wCount = parseFloat(col.weeks) || 0;
+					for(let i=0; i<wCount; i++) {
+						let weekStart = currDate ? new Date(currDate) : null;
+						let weekEnd = null;
+
+						if (weekStart) {
+							weekEnd = new Date(weekStart);
+							// Замінюємо жорстке обмеження !== 5 на динамічне !== targetDay
+							while (weekEnd.getDay() !== targetDay) { weekEnd.setDate(weekEnd.getDate() + 1); }
+
+							if (sem1EndDate && weekStart.getTime() <= sem1EndDate.getTime() && weekEnd.getTime() > sem1EndDate.getTime()) {
+								weekEnd = new Date(sem1EndDate);
+							} else if (sem2EndDate && weekStart.getTime() <= sem2EndDate.getTime() && weekEnd.getTime() > sem2EndDate.getTime()) {
+								weekEnd = new Date(sem2EndDate);
+							}
+						}
+
+
+                        let label = '__.__-__.__';
+                        if (weekStart && weekEnd) {
+                            let sD = weekStart.getDate().toString().padStart(2, '0'); let sM = (weekStart.getMonth()+1).toString().padStart(2, '0');
+                            let eD = weekEnd.getDate().toString().padStart(2, '0'); let eM = (weekEnd.getMonth()+1).toString().padStart(2, '0');
+                            label = `${sD}.${sM}-${eD}.${eM}`;
+                        }
+                        
+                        block.weeks.push({
+                            globalIndex: globalIdx++,
+                            dateLabel: label,
+                            weekNum: block.weeks.length + 1,
+                            cId: col.id,
+                            dateObj: weekEnd ? new Date(weekEnd) : null
+                        });
+                        
+                        if (weekEnd) {
+                            if (sem1EndDate && sem2StartDate && weekEnd.getTime() >= sem1EndDate.getTime() && weekStart.getTime() <= sem1EndDate.getTime()) {
+                                currDate = new Date(sem2StartDate);
+                            } else {
+                                currDate = new Date(weekEnd);
+                                currDate.setDate(currDate.getDate() + 1);
+                                while (currDate.getDay() !== 1) { currDate.setDate(currDate.getDate() + 1); }
+                            }
+                        }
+                    }
+                });
+                blocks.push(block);
+            });
+            
+            if (sem1EndDate) {
+                let lastSem1BlockIdx = -1;
+                blocks.forEach((b, idx) => {
+                    let hasSem1Week = b.weeks.some(w => w.dateObj && w.dateObj.getTime() <= sem1EndDate.getTime());
+                    if (hasSem1Week) lastSem1BlockIdx = idx;
+                });
+                if (lastSem1BlockIdx !== -1) blocks[lastSem1BlockIdx].isSem1End = true;
+            } else if (blocks.length > 0) {
+                blocks[0].isSem1End = true;
+            }
+            
+            return blocks;
+        }
+
+        window.toggleReconciliation = function(idx) {
+            if (window.reconciliationWeekIndex === idx) {
+                window.reconciliationWeekIndex = null;
+                document.getElementById('recon-indicator').classList.add('hidden');
+            } else {
+                window.reconciliationWeekIndex = idx;
+                document.getElementById('recon-indicator').classList.remove('hidden');
+            }
+            window.renderVychytkaTable();
+        };
+
+        window.renderVychytkaTable = function() {
+            const container = document.getElementById('vychytka-table-container');
+            let rowsList = [];
+            let referenceGroupId = null;
+
+            if (window.vychytkaViewMode === 'groups') {
+                referenceGroupId = window.currentVychytkaGroupId;
+                if (!referenceGroupId) return;
+                let groupObj = p.groupsData.find(g => g.id === referenceGroupId);
+                getGroupSubjects(referenceGroupId).forEach(s => {
+                    rowsList.push({ group: groupObj, subj: s });
+                });
+            } else {
+                if (!window.currentVychytkaTeacherId) {
+                    container.innerHTML = '<div class="p-8 text-center text-slate-500">Оберіть викладача для відображення даних.</div>';
+                    return;
+                }
+                let teacherObj = p.teachersData.find(t => t.id === window.currentVychytkaTeacherId);
+                if (!teacherObj) return;
+
+                p.groupsData.forEach(g => {
+                    getGroupSubjects(g.id).forEach(s => {
+                        if (s.teacher.includes(teacherObj.name)) {
+                            rowsList.push({ group: g, subj: s });
+                        }
+                    });
+                });
+
+                if (rowsList.length === 0) {
+                    container.innerHTML = '<div class="p-8 text-center text-slate-500">Немає закріплених годин для цього викладача.</div>';
+                    return;
+                }
+
+                rowsList.sort((a, b) => {
+                    let diff = (parseInt(a.group.num)||0) - (parseInt(b.group.num)||0);
+                    if (diff !== 0) return diff;
+                    return a.subj.name.localeCompare(b.subj.name, 'uk');
+                });
+                referenceGroupId = rowsList[0].group.id;
+            }
+
+            let blocks = getRozkladBlocks(referenceGroupId);
+            let isReconMode = window.reconciliationWeekIndex !== null;
+            let teacherColumnTitle = window.vychytkaViewMode === 'teachers' ? 'Група' : 'Викладач';
+
+            let sums = {}; 
+            const initSum = (key) => { if(sums[key] === undefined) sums[key] = 0; };
+
+            let html = `<table class="w-full text-left text-sm whitespace-nowrap excel-table relative" id="vychytka-main-table">`;
+            
+            html += `<thead class="shadow-sm">
+                <tr style="height: 36px;">
+                <th rowspan="4" class="p-2 bg-slate-200 sticky col-num text-center shadow-sm z-top-left border-r border-slate-300" style="top:0;">№</th>
+                <th rowspan="4" class="p-2 bg-slate-200 sticky col-predmet text-center shadow-sm z-top-left border-r border-slate-300" style="top:0;">Предмет</th>
+                <th rowspan="4" class="p-2 bg-slate-200 sticky col-teacher text-center shadow-sm z-top-left border-r border-slate-300" style="top:0;">${teacherColumnTitle}</th>`;
+            
+            blocks.forEach(b => {
+                if(b.weeks.length > 0) {
+                    html += `<th colspan="${b.weeks.length * 2}" class="p-2 bg-indigo-100/80 text-center border-r border-slate-300 font-bold sticky z-top text-indigo-900 shadow-sm" style="top:0;">${b.name}</th>`;
+                    html += `<th rowspan="4" class="p-1 bg-yellow-200 text-center border-r border-slate-300 w-8 text-[11px] sticky z-top font-bold shadow-sm" style="top:0; writing-mode: vertical-rl; transform: rotate(180deg);">Вичитано</th>`;
+                    html += `<th rowspan="4" class="p-1 bg-yellow-200 text-center border-r border-slate-300 w-8 text-[11px] sticky z-top font-bold shadow-sm" style="top:0; writing-mode: vertical-rl; transform: rotate(180deg);">Навч.план</th>`;
+                    html += `<th rowspan="4" class="p-1 bg-yellow-200 text-center border-r border-slate-300 w-8 text-[11px] sticky z-top font-bold shadow-sm" style="top:0; writing-mode: vertical-rl; transform: rotate(180deg);">Виконання</th>`;
+                    if (b.isSem1End) {
+                        html += `<th colspan="4" class="p-2 bg-indigo-200 text-center border-r border-slate-300 font-bold sticky z-top text-indigo-900 shadow-sm" style="top:0;">І сем</th>`;
+                    }
+                }
+            });
+            html += `<th colspan="3" class="p-2 bg-green-200 text-center border-r border-slate-300 font-bold sticky z-top text-green-900 shadow-sm" style="top:0;">За рік</th></tr><tr style="height: 36px;">`;
+
+            blocks.forEach(b => {
+                if(b.weeks.length > 0) {
+                    b.weeks.forEach(w => {
+                        let dimHeader = (isReconMode && w.globalIndex > window.reconciliationWeekIndex) ? 'opacity-30' : '';
+                        let dateStr = w.dateLabel.replace('-', '<br>');
+                        html += `<th colspan="2" class="p-1 bg-slate-50 text-center border-r border-slate-300 text-[9px] leading-tight min-w-[70px] sticky z-top font-medium shadow-sm ${dimHeader}" style="top:36px;">${dateStr}</th>`;
+                    });
+                    if (b.isSem1End) {
+                        html += `<th rowspan="3" class="p-1 bg-indigo-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">разом</th>`;
+                        html += `<th rowspan="3" class="p-1 bg-indigo-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">І семестр</th>`;
+                        html += `<th rowspan="3" class="p-1 bg-indigo-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">навч.план</th>`;
+                        html += `<th rowspan="3" class="p-1 bg-indigo-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">різниця</th>`;
+                    }
+                }
+            });
+            html += `<th rowspan="3" class="p-1 bg-green-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">Вичитано</th>`;
+            html += `<th rowspan="3" class="p-1 bg-green-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">Навч.план</th>`;
+            html += `<th rowspan="3" class="p-1 bg-green-50 text-center border-r border-slate-300 w-8 text-[10px] font-bold sticky z-top shadow-sm" style="top:36px; writing-mode: vertical-rl; transform: rotate(180deg);">Виконання</th></tr><tr style="height: 28px;">`;
+
+            blocks.forEach(b => {
+                if(b.weeks.length > 0) {
+                    b.weeks.forEach(w => { 
+                        let isSelected = window.reconciliationWeekIndex === w.globalIndex;
+                        let dimHeader = (isReconMode && w.globalIndex > window.reconciliationWeekIndex) ? 'opacity-30' : '';
+                        let styles = isSelected ? '!bg-orange-300 text-orange-900 shadow-inner border-orange-400' : 'hover:bg-orange-200 text-slate-700';
+                        html += `<th colspan="2" class="p-1 bg-slate-100 text-center border-r border-slate-300 font-bold text-xs sticky z-top shadow-sm cursor-pointer transition-colors ${styles} ${dimHeader}" style="top:72px;" onclick="window.toggleReconciliation(${w.globalIndex})" title="Звірка">${w.weekNum}</th>`; 
+                    });
+                }
+            });
+            html += `</tr><tr style="height: 28px;">`;
+
+            blocks.forEach(b => {
+                if(b.weeks.length > 0) {
+                    b.weeks.forEach(w => {
+                        let dimHeader = (isReconMode && w.globalIndex > window.reconciliationWeekIndex) ? 'opacity-30' : '';
+                        html += `<th class="p-0 bg-white text-center border-r border-slate-300 text-[10px] font-medium text-slate-500 w-9 min-w-[36px] sticky z-top shadow-sm ${dimHeader}" style="top:100px;">заміна</th>`;
+                        html += `<th class="p-0 bg-indigo-50 text-center border-r border-slate-300 text-[10px] font-bold text-indigo-700 w-9 min-w-[36px] sticky z-top shadow-sm ${dimHeader}" style="top:100px;">розкл</th>`;
+                    });
+                }
+            });
+            html += `</tr></thead><tbody>`;
+
+            rowsList.forEach((rowItem, idx) => {
+                let subj = rowItem.subj;
+                let groupId = rowItem.group.id;
+                let thirdColumnValue = window.vychytkaViewMode === 'teachers' ? (rowItem.group.num || rowItem.group.name) : subj.teacher;
+                
+                let isLocked = p.vychytkaData[groupId]?.locked || false;
+                
+                html += `<tr class="group hover:bg-slate-50 focus-within:bg-indigo-100/70 transition-colors border-b border-slate-200">
+                    <td class="p-2 sticky z-left bg-white group-focus-within:bg-indigo-100/70 text-center font-bold text-slate-500 border-r border-slate-300 col-num transition-colors">${idx+1}</td>
+                    <td class="p-2 sticky z-left bg-white group-focus-within:bg-indigo-100/70 font-bold text-slate-800 group-focus-within:text-indigo-800 border-r border-slate-300 col-predmet truncate transition-colors" title="${subj.name}">${subj.name}</td>
+                    <td class="p-2 sticky z-left bg-white group-focus-within:bg-indigo-100/70 text-slate-700 text-[11px] font-bold border-r border-slate-300 col-teacher truncate text-center text-indigo-800 transition-colors" title="${thirdColumnValue}">${thirdColumnValue}</td>`;
+                
+                blocks.forEach(b => {
+                    if(b.weeks.length > 0) {
+                        b.weeks.forEach(w => {
+                            let cellKey = `${subj.id}_w${w.globalIndex}`;
+                            let dimClass = (!isReconMode || w.globalIndex <= window.reconciliationWeekIndex) ? '' : 'dimmed-week';
+                            
+                            let rReadonly = isLocked ? 'readonly' : '';
+                            let rOpacity = isLocked ? 'opacity-50 cursor-not-allowed' : '';
+                            
+                            html += `<td id="td_z_${groupId}_${cellKey}" data-groupid="${groupId}" data-cellkey="${cellKey}" data-field="zamina" class="p-0 text-center border-r border-slate-300 bg-white relative selectable-cell ${dimClass}">
+                                <input type="number" id="z_${groupId}_${cellKey}" class="w-full text-center py-1.5 px-0 text-[13px] font-bold outline-none bg-transparent focus:bg-orange-50 relative z-0" value="" oninput="window.saveVychytka('${groupId}', '${cellKey}', 'zamina', this.value)">
+                            </td>`;
+                            html += `<td id="td_r_${groupId}_${cellKey}" data-groupid="${groupId}" data-cellkey="${cellKey}" data-field="rozklad" class="p-0 text-center border-r border-slate-300 bg-indigo-50/40 relative selectable-cell ${dimClass}">
+                                <input type="number" id="r_${groupId}_${cellKey}" class="w-full text-center py-1.5 px-0 text-[13px] font-bold text-indigo-700 outline-none bg-transparent focus:bg-orange-50 relative z-0 ${rOpacity}" value="" oninput="window.saveVychytka('${groupId}', '${cellKey}', 'rozklad', this.value)" ${rReadonly}>
+                            </td>`;
+                        });
+
+                        html += `<td id="vyk_${groupId}_${subj.id}_b_${b.rId}_zam" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-yellow-100 shadow-inner group-focus-within:bg-yellow-200 transition-colors"></td>`;
+                        html += `<td id="vyk_${groupId}_${subj.id}_b_${b.rId}_plan" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-yellow-100 group-focus-within:bg-yellow-200 transition-colors"></td>`;
+                        html += `<td id="vyk_${groupId}_${subj.id}_b_${b.rId}_vyk" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-yellow-100 group-focus-within:bg-yellow-200 transition-colors"></td>`;
+
+                        if (b.isSem1End) {
+                            html += `<td id="vyk_${groupId}_${subj.id}_s1_zam" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-indigo-100 group-focus-within:bg-indigo-200 transition-colors"></td>`;
+                            html += `<td id="vyk_${groupId}_${subj.id}_s1_roz" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-indigo-100 group-focus-within:bg-indigo-200 transition-colors"></td>`;
+                            html += `<td id="vyk_${groupId}_${subj.id}_s1_plan" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-indigo-100 group-focus-within:bg-indigo-200 transition-colors"></td>`;
+                            html += `<td id="vyk_${groupId}_${subj.id}_s1_diff" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-indigo-100 group-focus-within:bg-indigo-200 transition-colors"></td>`;
+                        }
+                    }
+                });
+                
+                html += `<td id="vyk_${groupId}_${subj.id}_yr_zam" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-green-100 group-focus-within:bg-green-200 transition-colors"></td>`;
+                html += `<td id="vyk_${groupId}_${subj.id}_yr_plan" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-green-100 group-focus-within:bg-green-200 transition-colors"></td>`;
+                html += `<td id="vyk_${groupId}_${subj.id}_yr_vyk" class="p-2 text-center font-bold text-sm border-r border-slate-300 bg-green-100 group-focus-within:bg-green-200 transition-colors"></td></tr>`;
+            });
+
+            html += `</tbody><tfoot class="z-left relative"><tr class="bg-slate-200 shadow-[0_-3px_10px_rgba(0,0,0,0.15)]">
+                <td colspan="3" class="p-3 text-right bg-slate-200 border-r border-slate-300 uppercase font-black text-slate-800 sticky z-left" style="left:0; width: 400px; min-width: 400px; max-width: 400px;">Всього:</td>`;
+            
+            blocks.forEach(b => {
+                if(b.weeks.length > 0) {
+                    b.weeks.forEach(w => {
+                        let dimClass = (!isReconMode || w.globalIndex <= window.reconciliationWeekIndex) ? '' : 'dimmed-week';
+                        html += `<td id="tot_w_${w.globalIndex}_z" class="p-2 text-center border-r border-slate-300 bg-white font-bold text-sm text-slate-800 ${dimClass}"></td>`;
+                        html += `<td id="tot_w_${w.globalIndex}_r" class="p-2 text-center border-r border-slate-300 bg-indigo-50 font-bold text-sm text-indigo-800 ${dimClass}"></td>`;
+                    });
+                    
+                    html += `<td id="tot_b_${b.rId}_zam" class="p-2 text-center border-r border-slate-300 bg-yellow-300 font-black text-sm text-slate-900"></td>`;
+                    html += `<td id="tot_b_${b.rId}_plan" class="p-2 text-center border-r border-slate-300 bg-yellow-300 font-black text-sm text-slate-900"></td>`;
+                    html += `<td id="tot_b_${b.rId}_vyk" class="p-2 text-center border-r border-slate-300 bg-yellow-300 font-black text-sm text-slate-900"></td>`;
+
+                    if (b.isSem1End) {
+                        html += `<td id="tot_s1_zam" class="p-2 text-center border-r border-slate-300 bg-indigo-300 font-black text-sm text-indigo-900"></td>`;
+                        html += `<td id="tot_s1_roz" class="p-2 text-center border-r border-slate-300 bg-indigo-300 font-black text-sm text-indigo-900"></td>`;
+                        html += `<td id="tot_s1_plan" class="p-2 text-center border-r border-slate-300 bg-indigo-300 font-black text-sm text-indigo-900"></td>`;
+                        html += `<td id="tot_s1_diff" class="p-2 text-center border-r border-slate-300 bg-indigo-300 font-black text-sm text-indigo-900"></td>`;
+                    }
+                }
+            });
+            
+            html += `<td id="tot_yr_zam" class="p-2 text-center border-r border-slate-300 bg-green-300 font-black text-sm text-green-900"></td>`;
+            html += `<td id="tot_yr_plan" class="p-2 text-center border-r border-slate-300 bg-green-300 font-black text-sm text-green-900"></td>`;
+            html += `<td id="tot_yr_vyk" class="p-2 text-center border-r border-slate-300 bg-green-300 font-black text-sm text-green-900"></td></tr></tfoot></table>`;
+            
+            container.innerHTML = html;
+            window.updateVychytkaCalculations(); 
+        };
+
+        window.updateVychytkaCalculations = function() {
+            let rowsList = [];
+            let referenceGroupId = null;
+
+            if (window.vychytkaViewMode === 'groups') {
+                referenceGroupId = window.currentVychytkaGroupId;
+                if (!referenceGroupId) return;
+                let groupObj = p.groupsData.find(g => g.id === referenceGroupId);
+                getGroupSubjects(referenceGroupId).forEach(s => { rowsList.push({ group: groupObj, subj: s }); });
+            } else {
+                if (!window.currentVychytkaTeacherId) return;
+                let teacherObj = p.teachersData.find(t => t.id === window.currentVychytkaTeacherId);
+                if (!teacherObj) return;
+
+                p.groupsData.forEach(g => {
+                    getGroupSubjects(g.id).forEach(s => {
+                        if (s.teacher.includes(teacherObj.name)) rowsList.push({ group: g, subj: s });
+                    });
+                });
+                if (rowsList.length === 0) return;
+                rowsList.sort((a, b) => {
+                    let diff = (parseInt(a.group.num)||0) - (parseInt(b.group.num)||0);
+                    if (diff !== 0) return diff;
+                    return a.subj.name.localeCompare(b.subj.name, 'uk');
+                });
+                referenceGroupId = rowsList[0].group.id;
+            }
+
+            let blocks = getRozkladBlocks(referenceGroupId);
+            let isReconMode = window.reconciliationWeekIndex !== null;
+            
+            let sums = {}; 
+            const initSum = (key) => { if(sums[key] === undefined) sums[key] = 0; };
+
+            rowsList.forEach(rowItem => {
+                let subj = rowItem.subj;
+                let groupId = rowItem.group.id;
+                let inSem1 = true;
+                let yrZam = 0;
+                let s1Zam = 0, s1Roz = 0;
+                let planTotal = subj.totalHours; 
+                let cumulativeZam = 0; 
+                let isLocked = p.vychytkaData[groupId]?.locked || false;
+                
+                blocks.forEach(b => {
+                    if(b.weeks.length > 0) {
+                        let bZam = 0;
+                        b.weeks.forEach(w => {
+                            let cellKey = `${subj.id}_w${w.globalIndex}`;
+                            let vData = p.vychytkaData[groupId]?.hours?.[cellKey] || {};
+                            let cmtData = p.vychytkaData[groupId]?.comments?.[cellKey] || {};
+                            
+                            let z = vData.zamina !== undefined ? vData.zamina : '';
+                            let r = vData.rozklad !== undefined ? vData.rozklad : '';
+                            
+                            let zVal = parseFloat(vData.zamina) || 0; 
+                            let rVal = parseFloat(vData.rozklad) || 0;
+                            
+                            let isIncluded = !isReconMode || w.globalIndex <= window.reconciliationWeekIndex;
+                            if (isIncluded) {
+                                cumulativeZam += zVal;
+                                bZam += zVal;
+                                yrZam += zVal;
+                                if (inSem1) { s1Zam += zVal; s1Roz += rVal; }
+
+                                initSum(`w_${w.globalIndex}_z`); sums[`w_${w.globalIndex}_z`] += zVal;
+                                initSum(`w_${w.globalIndex}_r`); sums[`w_${w.globalIndex}_r`] += rVal;
+                            }
+                            
+                            let zInput = document.getElementById(`z_${groupId}_${cellKey}`);
+                            if (zInput) {
+                                if (document.activeElement !== zInput) zInput.value = z;
+                                let isDiff = (vData.zamina !== '' && vData.zamina !== undefined && vData.rozklad !== '' && vData.rozklad !== undefined && zVal !== rVal);
+                                if (isDiff) { zInput.classList.add('!text-red-600'); zInput.classList.remove('text-slate-800'); } 
+                                else { zInput.classList.remove('!text-red-600'); zInput.classList.add('text-slate-800'); }
+                            }
+                            let rInput = document.getElementById(`r_${groupId}_${cellKey}`);
+                            if (rInput) {
+                                if (document.activeElement !== rInput) rInput.value = r;
+                                
+                                if (isLocked) {
+                                    rInput.setAttribute('readonly', 'true');
+                                    rInput.classList.add('opacity-50', 'cursor-not-allowed');
+                                    rInput.title = "Заблоковано для редагування";
+                                } else {
+                                    rInput.removeAttribute('readonly');
+                                    rInput.classList.remove('opacity-50', 'cursor-not-allowed');
+                                    rInput.removeAttribute('title');
+                                }
+                            }
+
+                            let updateCommentTriangle = (field, tdId, inputId) => {
+                                let cmt = cmtData[field];
+                                let td = document.getElementById(tdId);
+                                let inp = document.getElementById(inputId);
+                                if (td) {
+                                    let existing = td.querySelector('.comment-triangle');
+                                    if (cmt && cmt.text) {
+                                        let cleanText = cmt.text.replace(/"/g, '&quot;');
+                                        td.title = cleanText;
+                                        if(inp) inp.title = isLocked && field === 'rozklad' ? "Заблоковано для редагування\n\n" + cleanText : cleanText;
+                                        
+                                        if (existing) {
+                                            existing.style.borderBottomColor = cmt.color;
+                                        } else {
+                                            td.insertAdjacentHTML('beforeend', `<div class="comment-triangle" style="border-bottom-color: ${cmt.color}"></div>`);
+                                        }
+                                    } else {
+                                        td.removeAttribute('title');
+                                        if(inp) {
+                                            if(isLocked && field === 'rozklad') inp.title = "Заблоковано для редагування";
+                                            else inp.removeAttribute('title');
+                                        }
+                                        if (existing) existing.remove();
+                                    }
+                                }
+                            };
+                            updateCommentTriangle('zamina', `td_z_${groupId}_${cellKey}`, `z_${groupId}_${cellKey}`);
+                            updateCommentTriangle('rozklad', `td_r_${groupId}_${cellKey}`, `r_${groupId}_${cellKey}`);
+                        });
+
+                        let bVykon = planTotal - cumulativeZam;
+                        let bVykColor = bVykon === 0 ? 'text-green-600' : (bVykon < 0 ? 'text-red-600' : 'text-slate-800');
+                        
+                        initSum(`b_${b.rId}_zam`); sums[`b_${b.rId}_zam`] += cumulativeZam;
+                        initSum(`b_${b.rId}_plan`); sums[`b_${b.rId}_plan`] += planTotal;
+                        initSum(`b_${b.rId}_vyk`); sums[`b_${b.rId}_vyk`] += bVykon;
+
+                        let tdZam = document.getElementById(`vyk_${groupId}_${subj.id}_b_${b.rId}_zam`); if(tdZam) tdZam.innerText = cumulativeZam;
+                        let tdPlan = document.getElementById(`vyk_${groupId}_${subj.id}_b_${b.rId}_plan`); if(tdPlan) tdPlan.innerText = planTotal;
+                        let tdVykon = document.getElementById(`vyk_${groupId}_${subj.id}_b_${b.rId}_vyk`);
+                        if(tdVykon) { 
+                            tdVykon.innerText = bVykon; 
+                            tdVykon.className = `p-2 text-center font-bold text-sm border-r border-slate-300 bg-yellow-100 group-focus-within:bg-yellow-200 transition-colors ${bVykColor}`; 
+                        }
+
+                        if (b.isSem1End) {
+                            inSem1 = false;
+                            let s1Diff = planTotal - s1Zam;
+                            let s1DiffColor = s1Diff === 0 ? 'text-green-600' : (s1Diff < 0 ? 'text-red-600' : 'text-slate-800');
+                            
+                            initSum('s1_zam'); sums['s1_zam'] += s1Zam;
+                            initSum('s1_roz'); sums['s1_roz'] += s1Roz;
+                            initSum('s1_plan'); sums['s1_plan'] += planTotal;
+                            initSum('s1_diff'); sums['s1_diff'] += s1Diff;
+
+                            let tdS1Zam = document.getElementById(`vyk_${groupId}_${subj.id}_s1_zam`); if(tdS1Zam) tdS1Zam.innerText = s1Zam;
+                            let tdS1Roz = document.getElementById(`vyk_${groupId}_${subj.id}_s1_roz`); if(tdS1Roz) tdS1Roz.innerText = s1Roz;
+                            let tdS1Plan = document.getElementById(`vyk_${groupId}_${subj.id}_s1_plan`); if(tdS1Plan) tdS1Plan.innerText = planTotal;
+                            let tdS1Diff = document.getElementById(`vyk_${groupId}_${subj.id}_s1_diff`);
+                            if(tdS1Diff) { 
+                                tdS1Diff.innerText = s1Diff; 
+                                tdS1Diff.className = `p-2 text-center font-bold text-sm border-r border-slate-300 bg-indigo-100 group-focus-within:bg-indigo-200 transition-colors ${s1DiffColor}`; 
+                            }
+                        }
+                    }
+                });
+                
+                let yrVykon = planTotal - yrZam;
+                let yrVykColor = yrVykon === 0 ? 'text-green-600' : (yrVykon < 0 ? 'text-red-600' : 'text-slate-800');
+                
+                initSum('yr_zam'); sums['yr_zam'] += yrZam;
+                initSum('yr_plan'); sums['yr_plan'] += planTotal;
+                initSum('yr_vyk'); sums['yr_vyk'] += yrVykon;
+
+                let tdYrZam = document.getElementById(`vyk_${groupId}_${subj.id}_yr_zam`); if(tdYrZam) tdYrZam.innerText = yrZam;
+                let tdYrPlan = document.getElementById(`vyk_${groupId}_${subj.id}_yr_plan`); if(tdYrPlan) tdYrPlan.innerText = planTotal;
+                let tdYrVykon = document.getElementById(`vyk_${groupId}_${subj.id}_yr_vyk`);
+                if(tdYrVykon) { 
+                    tdYrVykon.innerText = yrVykon; 
+                    tdYrVykon.className = `p-2 text-center font-bold text-sm border-r border-slate-300 bg-green-100 group-focus-within:bg-green-200 transition-colors ${yrVykColor}`; 
+                }
+            });
+
+            blocks.forEach(b => {
+                if(b.weeks.length > 0) {
+                    b.weeks.forEach(w => {
+                        let tfZ = document.getElementById(`tot_w_${w.globalIndex}_z`); if(tfZ) tfZ.innerText = sums[`w_${w.globalIndex}_z`] || 0;
+                        let tfR = document.getElementById(`tot_w_${w.globalIndex}_r`); if(tfR) tfR.innerText = sums[`w_${w.globalIndex}_r`] || 0;
+                    });
+                    let tfBZ = document.getElementById(`tot_b_${b.rId}_zam`); if(tfBZ) tfBZ.innerText = sums[`b_${b.rId}_zam`] || 0;
+                    let tfBP = document.getElementById(`tot_b_${b.rId}_plan`); if(tfBP) tfBP.innerText = sums[`b_${b.rId}_plan`] || 0;
+                    let tfBV = document.getElementById(`tot_b_${b.rId}_vyk`); if(tfBV) tfBV.innerText = sums[`b_${b.rId}_vyk`] || 0;
+                    
+                    if(b.isSem1End) {
+                        let tfS1Z = document.getElementById(`tot_s1_zam`); if(tfS1Z) tfS1Z.innerText = sums['s1_zam'] || 0;
+                        let tfS1R = document.getElementById(`tot_s1_roz`); if(tfS1R) tfS1R.innerText = sums['s1_roz'] || 0;
+                        let tfS1P = document.getElementById(`tot_s1_plan`); if(tfS1P) tfS1P.innerText = sums['s1_plan'] || 0;
+                        let tfS1D = document.getElementById(`tot_s1_diff`); if(tfS1D) tfS1D.innerText = sums['s1_diff'] || 0;
+                    }
+                }
+            });
+            
+            let tfYrZ = document.getElementById(`tot_yr_zam`); if(tfYrZ) tfYrZ.innerText = sums['yr_zam'] || 0;
+            let tfYrP = document.getElementById(`tot_yr_plan`); if(tfYrP) tfYrP.innerText = sums['yr_plan'] || 0;
+            let tfYrV = document.getElementById(`tot_yr_vyk`); if(tfYrV) tfYrV.innerText = sums['yr_vyk'] || 0;
+        };
+
+        window.vychytkaSaveTimeouts = window.vychytkaSaveTimeouts || {};
+        window.saveVychytka = function(groupId, cellKey, field, val) {
+            let isLocked = p.vychytkaData[groupId]?.locked || false;
+            if (field === 'rozklad' && isLocked) return;
+
+            if(!p.vychytkaData[groupId]) p.vychytkaData[groupId] = { hours: {} };
+            if(!p.vychytkaData[groupId].hours) p.vychytkaData[groupId].hours = {};
+            if(!p.vychytkaData[groupId].hours[cellKey]) p.vychytkaData[groupId].hours[cellKey] = {};
+            
+            p.vychytkaData[groupId].hours[cellKey][field] = val;
+            window.updateVychytkaCalculations(); 
+            
+            let key = `${groupId}_${cellKey}_${field}`;
+            if (window.vychytkaSaveTimeouts[key]) clearTimeout(window.vychytkaSaveTimeouts[key]);
+            
+            window.vychytkaSaveTimeouts[key] = setTimeout(async () => {
+                await p.api.saveVychytka(groupId, { hours: p.vychytkaData[groupId].hours });
+            }, 400);
+        };
+
+        window.toggleLock = async function() {
+            let groupId = window.currentVychytkaGroupId;
+            if (window.vychytkaViewMode === 'teachers') {
+                alert("Блокування/розблокування доступне лише в режимі 'Групи'.");
+                return;
+            }
+            if (!groupId) return;
+
+            let isLocked = p.vychytkaData[groupId]?.locked || false;
+            let newState = !isLocked;
+            
+            if (newState) {
+                if(!confirm("Заблокувати розклад? Ви зможете редагувати лише поле 'заміна'.")) return;
+            }
+
+            if(!p.vychytkaData[groupId]) p.vychytkaData[groupId] = {};
+            p.vychytkaData[groupId].locked = newState;
+            
+            await p.api.saveVychytka(groupId, { locked: newState });
+            window.updateLockUI();
+            window.renderVychytkaTable(); 
+        };
+
+        window.updateLockUI = function() {
+            let groupId = window.currentVychytkaGroupId;
+            const btnGen = document.getElementById('btn-generate-vychytka');
+            const iconLock = document.getElementById('lock-icon');
+            const btnLock = document.getElementById('btn-toggle-lock');
+
+            if (window.vychytkaViewMode === 'teachers') {
+                btnLock.classList.add('hidden');
+                btnGen.classList.add('hidden');
+                return;
+            } else {
+                btnLock.classList.remove('hidden');
+                btnGen.classList.remove('hidden');
+            }
+
+            let isLocked = p.vychytkaData[groupId]?.locked || false;
+
+            if (isLocked) {
+                btnGen.disabled = true;
+                btnGen.classList.add('opacity-50', 'cursor-not-allowed');
+                iconLock.className = "fa-solid fa-lock";
+                btnLock.classList.replace('bg-slate-200', 'bg-red-100');
+                btnLock.classList.replace('text-slate-700', 'text-red-600');
+                btnLock.classList.replace('hover:bg-slate-300', 'hover:bg-red-200');
+                btnLock.title = "Розклад заблоковано. Натисніть, щоб розблокувати.";
+            } else {
+                btnGen.disabled = false;
+                btnGen.classList.remove('opacity-50', 'cursor-not-allowed');
+                iconLock.className = "fa-solid fa-lock-open";
+                btnLock.classList.replace('bg-red-100', 'bg-slate-200');
+                btnLock.classList.replace('text-red-600', 'text-slate-700');
+                btnLock.classList.replace('hover:bg-red-200', 'hover:bg-slate-300');
+                btnLock.title = "Розклад розблоковано. Натисніть, щоб заблокувати.";
+            }
+        };
+
+        window.generateVychytka = async function() {
+            if (window.vychytkaViewMode === 'teachers') {
+                alert("Формування розкладу доступне лише в режимі перегляду 'Групи'.");
+                return;
+            }
+            let refGroupId = window.currentVychytkaGroupId;
+            if (!refGroupId) return;
+            if (p.vychytkaData[refGroupId]?.locked) {
+                alert("Ця група заблокована. Спочатку розблокуйте її.");
+                return;
+            }
+            if(!confirm("Сформувати таблицю? Усі попередні дані заміняться середнім арифметичним на основі Екрану (тільки для тижнів, де є години).")) return;
+            
+            let eData = p.ekranData[refGroupId] || { rozklads: [], hours: {} };
+            let groupSubjects = getGroupSubjects(refGroupId);
+            let blocks = getRozkladBlocks(refGroupId);
+            
+            let newVychytkaCache = p.vychytkaData[refGroupId] || { hours: {} };
+            if (!newVychytkaCache.hours) newVychytkaCache.hours = {};
+            
+            let currentGroupWeeksMap = {};
+            blocks.forEach(cb => cb.weeks.forEach(cw => { currentGroupWeeksMap[cw.globalIndex] = { rId: cb.rId, cId: cw.cId }; }));
+
+            groupSubjects.forEach(subj => {
+                blocks.forEach(b => {
+                    let totalEkranHours = 0;
+                    let validWeeksCount = 0;
+
+                    b.weeks.forEach(w => {
+                        let mappedIds = currentGroupWeeksMap[w.globalIndex];
+                        if (mappedIds) {
+                            let wCountFromCol = 0;
+                            let matchingCol = eData.rozklads.find(r => r.id === mappedIds.rId)?.cols.find(c => c.id === mappedIds.cId);
+                            if (matchingCol) wCountFromCol = parseFloat(matchingCol.weeks) || 0;
+                            
+                            let hPerWeek = parseFloat(eData.hours[`${subj.id}_${mappedIds.rId}_${mappedIds.cId}`]) || 0;
+                            if (hPerWeek > 0) {
+                                totalEkranHours += (wCountFromCol * hPerWeek);
+                                validWeeksCount += wCountFromCol;
+                            }
+                        }
+                    });
+
+                    let mean = validWeeksCount > 0 ? Math.round(totalEkranHours / validWeeksCount) : 0;
+
+                    b.weeks.forEach(w => {
+                        let cellKey = `${subj.id}_w${w.globalIndex}`;
+                        let mappedIds = currentGroupWeeksMap[w.globalIndex];
+                        let hPerWeek = 0;
+                        if (mappedIds) {
+                            hPerWeek = parseFloat(eData.hours[`${subj.id}_${mappedIds.rId}_${mappedIds.cId}`]) || 0;
+                        }
+                        
+                        if (hPerWeek > 0) {
+                            newVychytkaCache.hours[cellKey] = { zamina: mean > 0 ? mean : '', rozklad: mean > 0 ? mean : '' };
+                        } else {
+                            newVychytkaCache.hours[cellKey] = { zamina: '', rozklad: '' };
+                        }
+                    });
+                });
+            });
+            
+            p.vychytkaData[refGroupId].hours = newVychytkaCache.hours;
+            await p.api.saveVychytka(refGroupId, { hours: newVychytkaCache.hours });
+            window.updateVychytkaCalculations();
+        };
+
+        function getTableGrid(table) {
+            let grid = [];
+            for (let r = 0; r < table.rows.length; r++) {
+                let tr = table.rows[r];
+                if (!grid[r]) grid[r] = [];
+                let cIdx = 0;
+                for (let c = 0; c < tr.cells.length; c++) {
+                    let td = tr.cells[c];
+                    while (grid[r][cIdx]) cIdx++; 
+                    let rSpan = parseInt(td.getAttribute('rowspan')) || 1;
+                    let cSpan = parseInt(td.getAttribute('colspan')) || 1;
+                    for (let y = 0; y < rSpan; y++) {
+                        for (let x = 0; x < cSpan; x++) {
+                            if (!grid[r + y]) grid[r + y] = [];
+                            grid[r + y][cIdx + x] = td;
+                        }
+                    }
+                    cIdx += cSpan;
+                }
+            }
+            return grid;
+        }
+
+        function getCellCoords(grid, td) {
+            for (let y = 0; y < grid.length; y++) {
+                for (let x = 0; x < grid[y].length; x++) { if (grid[y][x] === td) return {x, y}; }
+            }
+            return null;
+        }
+
+        function clearSelection() {
+            selectedCells.forEach(id => {
+                let td = document.getElementById(id);
+                if(td) td.classList.remove('selected-cell');
+            });
+            selectedCells.clear();
+        }
+
+        function selectCell(td) {
+            if(!td.id) return;
+            selectedCells.add(td.id);
+            td.classList.add('selected-cell');
+            if(selectedCells.size === 1) {
+                let inp = td.querySelector('input');
+                if(inp) inp.focus();
+            }
+        }
+
+        function selectBox(sTd, eTd) {
+            clearSelection();
+            let table = sTd.closest('table');
+            if (!table || table !== eTd.closest('table')) return;
+            let grid = getTableGrid(table);
+            let p1 = getCellCoords(grid, sTd);
+            let p2 = getCellCoords(grid, eTd);
+            if (!p1 || !p2) return;
+            let minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+            let minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
+            
+            for(let y = minY; y <= maxY; y++) {
+                for(let x = minX; x <= maxX; x++) {
+                    let cell = grid[y][x];
+                    if(cell && cell.classList.contains('selectable-cell') && !selectedCells.has(cell.id)) {
+                        selectCell(cell);
+                    }
+                }
+            }
+        }
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; 
+            let td = e.target.closest('.selectable-cell');
+            if (td) {
+                isDragging = true;
+                if (!e.ctrlKey && !e.shiftKey) clearSelection();
+                startCell = td; 
+                selectCell(td);
+            } else if (!e.target.closest('#comment-modal') && !e.target.closest('button')) {
+                clearSelection();
+            }
+        });
+
+        document.addEventListener('mouseover', (e) => {
+            if (isDragging && startCell) {
+                let td = e.target.closest('.selectable-cell');
+                if (td) selectBox(startCell, td);
+            }
+        });
+
+        document.addEventListener('mouseup', () => { isDragging = false; });
+
+        document.addEventListener('wheel', function(event) {
+            if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                document.activeElement.blur();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedCells.size > 0) {
+                    if (e.key === 'Backspace' && selectedCells.size === 1 && document.activeElement.tagName === 'INPUT') return;
+                    
+                    e.preventDefault();
+                    let updatesByGroup = {};
+                    let hasChanges = false;
+                    
+                    selectedCells.forEach(id => {
+                        let td = document.getElementById(id);
+                        if(td) {
+                            let gId = td.dataset.groupid;
+                            let field = td.dataset.field;
+                            let isLocked = p.vychytkaData[gId]?.locked || false;
+                            
+                            if (field === 'rozklad' && isLocked) return;
+
+                            let input = td.querySelector('input');
+                            if (input && input.value !== '') {
+                                input.value = '';
+                                let cKey = td.dataset.cellkey;
+                                
+                                if(!updatesByGroup[gId]) updatesByGroup[gId] = {};
+                                if(!updatesByGroup[gId][cKey]) updatesByGroup[gId][cKey] = {};
+                                updatesByGroup[gId][cKey][field] = '';
+                                hasChanges = true;
+                            }
+                        }
+                    });
+                    
+                    if (hasChanges) {
+                        for(let gId in updatesByGroup) {
+                            if(!p.vychytkaData[gId]) p.vychytkaData[gId] = {hours: {}};
+                            if(!p.vychytkaData[gId].hours) p.vychytkaData[gId].hours = {};
+                            
+                            for(let cKey in updatesByGroup[gId]) {
+                                if(!p.vychytkaData[gId].hours[cKey]) p.vychytkaData[gId].hours[cKey] = {};
+                                for(let field in updatesByGroup[gId][cKey]) {
+                                    p.vychytkaData[gId].hours[cKey][field] = '';
+                                }
+                            }
+                            p.api.saveVychytka(gId, { hours: p.vychytkaData[gId].hours });
+                        }
+                        window.updateVychytkaCalculations();
+                    }
+                }
+            }
+
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                let activeElement = document.activeElement;
+                if (activeElement && activeElement.tagName === 'INPUT' && activeElement.closest('.selectable-cell')) {
+                    let currentTd = activeElement.closest('td');
+                    let currentTr = currentTd.closest('tr');
+                    let tbody = currentTr.closest('tbody');
+                    if (!tbody) return;
+
+                    let allRows = Array.from(tbody.querySelectorAll('tr.group'));
+                    let rowIndex = allRows.indexOf(currentTr);
+                    let allCellsInRow = Array.from(currentTr.querySelectorAll('.selectable-cell'));
+                    let cellIndex = allCellsInRow.indexOf(currentTd);
+
+                    let nextInput = null;
+
+                    if (e.key === 'ArrowRight' && cellIndex < allCellsInRow.length - 1) {
+                        nextInput = allCellsInRow[cellIndex + 1].querySelector('input');
+                    } else if (e.key === 'ArrowLeft' && cellIndex > 0) {
+                        nextInput = allCellsInRow[cellIndex - 1].querySelector('input');
+                    } else if (e.key === 'ArrowDown' && rowIndex < allRows.length - 1) {
+                        let nextRowCells = Array.from(allRows[rowIndex + 1].querySelectorAll('.selectable-cell'));
+                        if (nextRowCells[cellIndex]) nextInput = nextRowCells[cellIndex].querySelector('input');
+                    } else if (e.key === 'ArrowUp' && rowIndex > 0) {
+                        let prevRowCells = Array.from(allRows[rowIndex - 1].querySelectorAll('.selectable-cell'));
+                        if (prevRowCells[cellIndex]) nextInput = prevRowCells[cellIndex].querySelector('input');
+                    }
+
+                    if (nextInput) {
+                        e.preventDefault(); 
+                        clearSelection();
+                        selectCell(nextInput.closest('td'));
+                        nextInput.select();
+                    }
+                }
+            }
+        });
+
+        window.openCommentModal = function() {
+            if(selectedCells.size === 0) { alert('Спочатку виділіть комірки.'); return; }
+            
+            let existingText = '';
+            let existingColor = '#f59e0b';
+            let hasComment = false;
+
+            for (let id of selectedCells) {
+                let td = document.getElementById(id);
+                if (td) {
+                    let gId = td.dataset.groupid;
+                    let cKey = td.dataset.cellkey;
+                    let field = td.dataset.field;
+                    let cmt = p.vychytkaData[gId]?.comments?.[cKey]?.[field];
+                    if (cmt && cmt.text) {
+                        existingText = cmt.text;
+                        existingColor = cmt.color || existingColor;
+                        hasComment = true;
+                        break; 
+                    }
+                }
+            }
+
+            document.getElementById('comment-text').value = existingText;
+            document.getElementById('comment-color').value = existingColor;
+            
+            if (hasComment) { document.getElementById('btn-delete-comment').classList.remove('hidden'); } 
+            else { document.getElementById('btn-delete-comment').classList.add('hidden'); }
+
+            document.getElementById('comment-modal').classList.remove('hidden');
+            document.getElementById('comment-text').focus();
+        };
+
+        window.deleteComment = async function() {
+            if(selectedCells.size === 0) return;
+            let updatesByGroup = {};
+            
+            selectedCells.forEach(id => {
+                let td = document.getElementById(id);
+                if(!td) return;
+                let gId = td.dataset.groupid;
+                let cKey = td.dataset.cellkey;
+                let field = td.dataset.field;
+                
+                if(!updatesByGroup[gId]) updatesByGroup[gId] = {};
+                if(!updatesByGroup[gId][cKey]) updatesByGroup[gId][cKey] = {};
+                updatesByGroup[gId][cKey][field] = null;
+            });
+
+            for(let gId in updatesByGroup) {
+                if(!p.vychytkaData[gId]) continue;
+                if(!p.vychytkaData[gId].comments) p.vychytkaData[gId].comments = {};
+                
+                for(let cKey in updatesByGroup[gId]) {
+                    if(!p.vychytkaData[gId].comments[cKey]) continue;
+                    for(let field in updatesByGroup[gId][cKey]) {
+                        delete p.vychytkaData[gId].comments[cKey][field];
+                    }
+                }
+                await p.api.saveVychytka(gId, { comments: p.vychytkaData[gId].comments });
+            }
+            
+            document.getElementById('comment-modal').classList.add('hidden');
+            window.updateVychytkaCalculations(); 
+            clearSelection();
+        };
+
+        window.saveComment = async function() {
+            if(selectedCells.size === 0) return;
+            let text = document.getElementById('comment-text').value.trim();
+            let color = document.getElementById('comment-color').value;
+            
+            if (text === '') { window.deleteComment(); return; }
+
+            let updatesByGroup = {};
+            selectedCells.forEach(id => {
+                let td = document.getElementById(id);
+                if(!td) return;
+                let gId = td.dataset.groupid;
+                let cKey = td.dataset.cellkey;
+                let field = td.dataset.field;
+                
+                if(!updatesByGroup[gId]) updatesByGroup[gId] = {};
+                if(!updatesByGroup[gId][cKey]) updatesByGroup[gId][cKey] = {};
+                updatesByGroup[gId][cKey][field] = { text, color };
+            });
+            
+            for(let gId in updatesByGroup) {
+                if(!p.vychytkaData[gId]) p.vychytkaData[gId] = {};
+                if(!p.vychytkaData[gId].comments) p.vychytkaData[gId].comments = {};
+                
+                for(let cKey in updatesByGroup[gId]) {
+                    if(!p.vychytkaData[gId].comments[cKey]) p.vychytkaData[gId].comments[cKey] = {};
+                    for(let field in updatesByGroup[gId][cKey]) {
+                        p.vychytkaData[gId].comments[cKey][field] = updatesByGroup[gId][cKey][field];
+                    }
+                }
+                await p.api.saveVychytka(gId, { comments: p.vychytkaData[gId].comments });
+            }
+            
+            document.getElementById('comment-modal').classList.add('hidden');
+            window.updateVychytkaCalculations(); 
+            clearSelection();
+        };
+
+        // Запуск при ініціалізації
+        document.addEventListener('DOMContentLoaded', () => {
+            if(p.groupsData && p.groupsData.length > 0) window.onDataUpdated();
+        });
+
+    </script>
+</body>
+</html>
